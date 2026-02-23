@@ -431,4 +431,4 @@ Ce projet est sous licence [MIT](LICENSE).
 
 ## Auteur
 
-Développé par **Melvyn Morice** — Expert-comptable passionné par l'IA et l'automatisation.
+Développé par **Melvyn Morice** — Expert-comptable mémorialiste passionné par l'IA et l'automatisation.
