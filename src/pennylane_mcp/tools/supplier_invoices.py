@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
-from ..api import api_get, api_put
+from ..api import api_get, api_post, api_put
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -200,3 +200,200 @@ def register(mcp: FastMCP) -> None:
             )
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Catégoriser une facture fournisseur ───────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_categorize_supplier_invoice",
+        description="Met à jour la ventilation analytique (catégories et poids) d'une facture fournisseur.",
+        annotations={
+            "title": "Catégoriser une facture fournisseur",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_categorize_supplier_invoice(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
+        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+    ) -> str:
+        """Affecte des axes analytiques à une facture fournisseur."""
+        try:
+            body = {"categories": categories}
+            data = await api_put(f"/supplier_invoices/{id}/categories", body)
+            return f"✅ Catégories de la facture fournisseur {id} mises à jour.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les catégories d'une facture fournisseur ───────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_supplier_invoice_categories",
+        description="Consulte les axes analytiques associés à une facture fournisseur.",
+        annotations={
+            "title": "Catégories d'une facture fournisseur",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_supplier_invoice_categories(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
+    ) -> str:
+        """Liste la ventilation analytique d'une facture fournisseur."""
+        try:
+            data = await api_get(f"/supplier_invoices/{id}/categories")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Importer une facture fournisseur électronique (e-invoice) ─────────────
+
+    @mcp.tool(
+        name="pennylane_import_supplier_einvoice",
+        description="Importe une facture fournisseur au format Factur-X PDF ou XML (UBL/CII).",
+        annotations={
+            "title": "Importer facture fournisseur électronique",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_import_supplier_einvoice(
+        file_attachment_id: Annotated[int, Field(description="ID du fichier uploadé contenant la facture Factur-X/XML.")],
+    ) -> str:
+        """Importe et convertit une facture fournisseur électronique reçue."""
+        try:
+            body = {"file_attachment_id": file_attachment_id}
+            data = await api_post("/supplier_invoices/e_invoice_import", body)
+            return f"✅ Facture fournisseur électronique importée (id: {data.get('id')}).\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Modifier le statut e-invoice d'une facture fournisseur ────────────────
+
+    @mcp.tool(
+        name="pennylane_update_supplier_einvoice_status",
+        description="Applique une transition de cycle de vie e-invoicing : dispute, refuse, undispute (approuvé).",
+        annotations={
+            "title": "Statut e-invoice facture fournisseur",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_update_supplier_einvoice_status(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
+        status: Annotated[str, Field(description="Nouveau statut e-invoicing : 'dispute', 'refuse', ou 'undispute'.")],
+        reason: Annotated[Optional[str], Field(default=None, description="Raison en cas de refus ou litige (requis pour dispute/refuse).")] = None,
+    ) -> str:
+        """Change le statut PPF / PA d'une facture fournisseur reçue en e-invoicing."""
+        try:
+            body: dict = {"status": status}
+            if reason:
+                body["reason"] = reason
+            data = await api_put(f"/supplier_invoices/{id}/e_invoice_status", body)
+            return f"✅ Statut e-invoicing de la facture {id} mis à jour → {status}.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Valider la comptabilisation d'une facture fournisseur ─────────────────
+
+    @mcp.tool(
+        name="pennylane_validate_supplier_invoice_accounting",
+        description="Valide l'écriture comptable d'une facture fournisseur pour la faire passer en statut Complete.",
+        annotations={
+            "title": "Valider comptabilité facture fournisseur",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_validate_supplier_invoice_accounting(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur à valider comptablement.")],
+    ) -> str:
+        """Clôture la révision comptable d'une facture d'achat."""
+        try:
+            data = await api_put(f"/supplier_invoices/{id}/validate_accounting", {})
+            return f"✅ Facture fournisseur {id} validée comptablement (statut: Complete).\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Importer une facture fournisseur avec fichier joint ───────────────────
+
+    @mcp.tool(
+        name="pennylane_import_supplier_invoice",
+        description="Importe une facture fournisseur classique avec un ID de fichier joint.",
+        annotations={
+            "title": "Importer facture fournisseur avec fichier",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_import_supplier_invoice(
+        file_attachment_id: Annotated[int, Field(description="ID du fichier joint (ex: PDF de la facture).")],
+        supplier_id: Annotated[Optional[int], Field(default=None, description="ID du fournisseur si connu.")] = None,
+    ) -> str:
+        """Importe un document d'achat dans l'OCR / module factures fournisseurs."""
+        try:
+            body: dict = {"file_attachment_id": file_attachment_id}
+            if supplier_id:
+                body["supplier_id"] = supplier_id
+            data = await api_post("/supplier_invoices/import", body)
+            return f"✅ Facture fournisseur importée avec succès.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Transactions rapprochées d'une facture fournisseur ────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_supplier_invoice_matched_transactions",
+        description="Liste les règlements bancaires rapprochés d'une facture fournisseur.",
+        annotations={
+            "title": "Transactions rapprochées facture fournisseur",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_supplier_invoice_matched_transactions(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
+    ) -> str:
+        """Consulte les paiements bancaires lettrés sur l'achat."""
+        try:
+            data = await api_get(f"/supplier_invoices/{id}/matched_transactions")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Paiements d'une facture fournisseur ───────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_supplier_invoice_payments",
+        description="Liste l'historique des paiements enregistrés pour une facture fournisseur.",
+        annotations={
+            "title": "Paiements d'une facture fournisseur",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_supplier_invoice_payments(
+        id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
+    ) -> str:
+        """Liste tous les décaissements associés à la facture."""
+        try:
+            data = await api_get(f"/supplier_invoices/{id}/payments")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+

@@ -200,3 +200,52 @@ def register(mcp: FastMCP) -> None:
             return f"✅ Fournisseur mis à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Catégoriser un fournisseur ───────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_categorize_supplier",
+        description="Met à jour la ventilation analytique (catégories et poids) d'un fournisseur.",
+        annotations={
+            "title": "Catégoriser un fournisseur",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_categorize_supplier(
+        id: Annotated[int, Field(description="Identifiant du fournisseur.")],
+        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+    ) -> str:
+        """Affecte des axes analytiques par défaut à une fiche fournisseur."""
+        try:
+            body = {"categories": categories}
+            data = await api_put(f"/suppliers/{id}/categories", body)
+            return f"✅ Catégories du fournisseur {id} mises à jour.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les catégories d'un fournisseur ───────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_supplier_categories",
+        description="Consulte les axes analytiques associés par défaut à un fournisseur.",
+        annotations={
+            "title": "Catégories d'un fournisseur",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_supplier_categories(
+        id: Annotated[int, Field(description="Identifiant du fournisseur.")],
+    ) -> str:
+        """Liste la ventilation analytique configurée sur un fournisseur."""
+        try:
+            data = await api_get(f"/suppliers/{id}/categories")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+

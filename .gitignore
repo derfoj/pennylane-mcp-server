@@ -1,4 +1,4 @@
-# Python
+# ─── Python & Packaging ───
 __pycache__/
 *.py[cod]
 *$py.class
@@ -6,21 +6,55 @@ __pycache__/
 dist/
 build/
 .eggs/
+*.egg
+.hatch/
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.mypy_cache/
+.ruff_cache/
 
-# Environnements virtuels
+# ─── Environnements virtuels & Variables d'environnement ───
 .env
+.env.*
+!.env.example
 .venv/
 venv/
 env/
+ENV/
 
+# ─── Logs & Fichiers temporaires ───
+logs/
+*.log
+*.tmp
+*.bak
+scratch/
+
+# ─── Configuration sensible (contient des tokens API et données clients) ───
+dossiers.json
+dossiers*.json
+*.secret
+config.local.json
+claude_desktop_config.json
+
+# ─── OS & IDE ───
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
-# IDE
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDE & Editeurs
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Configuration sensible (contient des tokens API)
-dossiers.json
+*~
+*.sublime-project
+*.sublime-workspace

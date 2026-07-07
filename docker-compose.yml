@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  pennylane-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pennylane-mcp-server
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      # Mode de transport en réseau (SSE - Server-Sent Events)
+      - MCP_TRANSPORT=sse
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=8000
+      
+      # Sécurité : Jeton d'authentification Bearer (fortement recommandé)
+      - MCP_AUTH_TOKEN=secret_cabinet_2026
+      
+      # Configuration Pennylane (Mode Multi-Dossiers par défaut ou Token unique)
+      # - PENNYLANE_API_TOKEN=votre_token_api_pennylane_ici
+      - PENNYLANE_DOSSIERS_PATH=/app/dossiers.json
+    volumes:
+      # Vous pouvez monter votre fichier dossiers.json pour gérer tous vos dossiers clients
+      # - ./dossiers.json:/app/dossiers.json:ro
+      - ./logs:/app/logs

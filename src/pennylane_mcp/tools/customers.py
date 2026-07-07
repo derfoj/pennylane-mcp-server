@@ -309,3 +309,52 @@ def register(mcp: FastMCP) -> None:
             return f"✅ Client particulier mis à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Catégoriser un client ────────────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_categorize_customer",
+        description="Met à jour la ventilation analytique (catégories et poids) d'un client.",
+        annotations={
+            "title": "Catégoriser un client",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_categorize_customer(
+        id: Annotated[int, Field(description="Identifiant du client.")],
+        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+    ) -> str:
+        """Affecte des axes analytiques par défaut à une fiche client."""
+        try:
+            body = {"categories": categories}
+            data = await api_put(f"/customers/{id}/categories", body)
+            return f"✅ Catégories du client {id} mises à jour.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les catégories d'un client ────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_categories",
+        description="Consulte les axes analytiques associés par défaut à un client.",
+        annotations={
+            "title": "Catégories d'un client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_categories(
+        id: Annotated[int, Field(description="Identifiant du client.")],
+    ) -> str:
+        """Liste la ventilation analytique configurée sur un client."""
+        try:
+            data = await api_get(f"/customers/{id}/categories")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+

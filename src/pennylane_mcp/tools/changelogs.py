@@ -65,9 +65,11 @@ def register(mcp: FastMCP) -> None:
 
 def _register_changelog_tool(mcp: FastMCP, entity_key: str, meta: dict) -> None:
     """Enregistre un outil changelog pour une entité donnée."""
+    desc = f"Récupère les événements de changement sur les {meta['doc']}. Utile pour le suivi des modifications (création, mise à jour, suppression)."
 
     @mcp.tool(
         name=meta["name"],
+        description=desc,
         annotations={
             "title": meta["title"],
             "readOnlyHint": True,
@@ -110,8 +112,4 @@ def _register_changelog_tool(mcp: FastMCP, entity_key: str, meta: dict) -> None:
         except Exception as exc:
             return f"❌ {exc}"
 
-    # Mettre le bon docstring
-    changelog_tool.__doc__ = (
-        f"Récupère les événements de changement sur les {meta['doc']}.\n"
-        f"Utile pour le suivi des modifications (création, mise à jour, suppression)."
-    )
+    # Le docstring / description est transmis via le paramètre description dans @mcp.tool

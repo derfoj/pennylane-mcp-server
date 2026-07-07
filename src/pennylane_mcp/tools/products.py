@@ -188,3 +188,52 @@ def register(mcp: FastMCP) -> None:
             return f"✅ Produit {id} mis à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Catégoriser un produit ───────────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_categorize_product",
+        description="Met à jour la ventilation analytique (catégories et poids) d'un produit.",
+        annotations={
+            "title": "Catégoriser un produit",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_categorize_product(
+        id: Annotated[int, Field(description="Identifiant du produit.")],
+        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+    ) -> str:
+        """Affecte des axes analytiques par défaut à un produit du catalogue."""
+        try:
+            body = {"categories": categories}
+            data = await api_put(f"/products/{id}/categories", body)
+            return f"✅ Catégories du produit {id} mises à jour.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les catégories d'un produit ───────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_product_categories",
+        description="Consulte les axes analytiques associés par défaut à un produit.",
+        annotations={
+            "title": "Catégories d'un produit",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_product_categories(
+        id: Annotated[int, Field(description="Identifiant du produit.")],
+    ) -> str:
+        """Liste la ventilation analytique configurée sur un produit."""
+        try:
+            data = await api_get(f"/products/{id}/categories")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+

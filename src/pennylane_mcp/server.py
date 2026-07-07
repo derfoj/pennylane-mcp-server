@@ -2,7 +2,7 @@
 """Serveur MCP Pennylane — Point d'entrée principal.
 
 Serveur MCP (Model Context Protocol) complet pour l'API comptable Pennylane.
-Conçu pour les experts-comptables, il expose 80+ outils couvrant :
+Conçu pour les experts-comptables, il expose 120+ outils couvrant :
   - Plan comptable (CRUD)
   - Journaux comptables
   - Écritures comptables (CRUD + lignes)
@@ -11,14 +11,21 @@ Conçu pour les experts-comptables, il expose 80+ outils couvrant :
   - Exercices fiscaux
   - Clients (entreprises et particuliers)
   - Fournisseurs
-  - Factures clients (CRUD, finalisation, paiement)
-  - Factures fournisseurs (consultation, mise à jour, paiement)
+  - Factures clients (CRUD, finalisation, paiement, e-invoicing PA, annexes)
+  - Factures fournisseurs (consultation, mise à jour, paiement, e-invoicing PA, OCR)
   - Produits / services (catalogue)
-  - Devis (CRUD, envoi par email, statut)
+  - Devis (CRUD, envoi par email, statut, annexes)
   - Catégories analytiques (groupes et catégories)
-  - Exports comptables (FEC, Grand Livre Analytique)
+  - Exports comptables (FEC, Grand Livre Général, Grand Livre Analytique)
   - Abonnements de facturation récurrente
   - Suivi des modifications (ChangeLogs)
+  - Comptes bancaires & établissements (IBAN, BIC)
+  - Transactions bancaires & lettrage / rapprochement
+  - Mandats de prélèvement (SEPA, GoCardless, Pro Account)
+  - Documents commerciaux non comptabilisés
+  - Demandes d'achats & bons de commande
+  - Statut d'immatriculation Plateforme Agréée (PA)
+  - Pièces jointes / fichiers annexes (File Attachments)
   - Gestion multi-dossiers (v2.0)
 
 Modes de transport :
@@ -50,23 +57,31 @@ from mcp.server.fastmcp import FastMCP
 from .api import close_client, init_client
 from .constants import SERVER_NAME, SERVER_VERSION
 from .dossier_manager import DossierManager, set_manager
+from . import prompts, resources
 from .tools import (
     accounts,
+    bank_accounts,
     billing_subscriptions,
     categories,
     changelogs,
+    commercial_documents,
     customer_invoices,
     customers,
     dossiers,
     entries,
     entry_lines,
     exports,
+    file_attachments,
     journals,
+    mandates,
     me,
+    pa_registrations,
     products,
+    purchase_requests,
     quotes,
     supplier_invoices,
     suppliers,
+    transactions,
     trial_balance,
 )
 
@@ -192,14 +207,46 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
         print(f"🛑 {SERVER_NAME} arrêté", file=sys.stderr)
 
 
+# ─── Instructions de serveur pour Claude ─────────────────────────────────────
+
+INSTRUCTIONS_CLAUDE = """Tu es un assistant expert-comptable connecté à l'API comptable Pennylane V2 via le Model Context Protocol (MCP).
+Règles impératives et piliers d'interaction avec ce serveur :
+1. Équilibre comptable absolu : Toute écriture créée via `pennylane_create_entry` doit rigoureusement équilibrer le total des Débits et des Crédits (Total Débit == Total Crédit).
+2. Référentiel du Plan Comptable Général (PCG) :
+   - Classe 1 : Capitaux (101 Capital, 164 Emprunts)
+   - Classe 2 : Immobilisations (218 Matériel)
+   - Classe 4 : Tiers (401=Fournisseurs, 411=Clients, 421=Personnel, 43=Sécurité Sociale, 44=TVA)
+   - Classe 5 : Trésorerie (512=Banque, 530=Caisse impérativement débitrice ou nulle, JAMAIS créditrice)
+   - Classe 6 : Charges (60 Achats, 61/62 Services extérieurs, 63 Impôts, 64 Personnel)
+   - Classe 7 : Produits/CA (701 Ventes produits finis, 706 Prestations, 707 Marchandises, 709 Rabais accordés)
+3. Exploitation pro-active des Prompts et Workflows MCP :
+   - Suggère et lance proactivement les workflows intégrés lorsque le cas s'y prête :
+     * `/relance_impayes_clients` : pour l'analyse des créances et relances.
+     * `/rapprochement_bancaire_ia` : pour réconcilier les mouvements bancaires non lettrés.
+     * `/diagnostic_facturation_electronique` : pour auditer le SIRET/TVA et l'annuaire PA/PPF.
+     * `/audit_analytique_rentabilite` : pour vérifier la ventilation (somme des weight == 1.0) et la marge projet.
+     * `/audit_cloture_mensuelle`, `/synthese_chiffre_affaires`, `/comparatif_multi_dossiers`, `/verification_conformite_fec_tva`.
+4. Exploitation des Ressources et Templates de Ressources (zéro consommation d'outil/jeton) :
+   - Avant de requêter des listes lourdes, lis en priorité les guides : `pennylane://guide/workflows`, `pennylane://guide/e-invoicing`, `pennylane://guide/analytique`, `pennylane://comptes/classes`.
+   - Utilise les templates dynamiques pour un diagnostic immédiat : `pennylane://client/{id}/encours`, `pennylane://fournisseur/{id}/encours`, `pennylane://compte/{numero}`, `pennylane://journal/{code}/recent`, `pennylane://devis/en_attente`.
+5. Bonnes pratiques et Gestion Multi-dossiers :
+   - Toujours rechercher ou vérifier le numéro de compte exact via `pennylane_list_accounts` avant de passer une écriture en cas de doute.
+   - En cas d'écart sur la balance, vérifie en priorité les comptes d'attente (471/472/58) et la caisse (530).
+   - En mode multi-dossiers, vérifie toujours le dossier actif avec `pennylane_current_dossier` avant toute opération sensible de création ou de modification.
+"""
+
 # ─── Création du serveur ─────────────────────────────────────────────────────
 
 mcp = FastMCP(
     SERVER_NAME,
+    instructions=INSTRUCTIONS_CLAUDE,
     lifespan=lifespan,
 )
 
-# ─── Enregistrement de tous les outils ───────────────────────────────────────
+# ─── Enregistrement de tous les outils, prompts et ressources ────────────────
+
+prompts.register(mcp)
+resources.register(mcp)
 
 me.register(mcp)
 accounts.register(mcp)
@@ -217,6 +264,13 @@ categories.register(mcp)
 exports.register(mcp)
 billing_subscriptions.register(mcp)
 changelogs.register(mcp)
+bank_accounts.register(mcp)
+transactions.register(mcp)
+mandates.register(mcp)
+commercial_documents.register(mcp)
+purchase_requests.register(mcp)
+pa_registrations.register(mcp)
+file_attachments.register(mcp)
 dossiers.register(mcp)  # Outils multi-dossiers (v2.0)
 
 

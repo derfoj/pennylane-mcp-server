@@ -1,6 +1,9 @@
 <p align="center">
   <h1 align="center">🧾 Pennylane MCP Server</h1>
   <p align="center">
+    <img src="mcp_pennylane.jpeg" alt="Pennylane MCP Server - Assistant IA Expert-Comptable" width="800" />
+  </p>
+  <p align="center">
     Serveur MCP (Model Context Protocol) complet pour l'API comptable <strong>Pennylane V2</strong>
     <br />
     Conçu pour les <strong>experts-comptables</strong> et cabinets comptables
@@ -16,7 +19,7 @@
 
 ## Présentation
 
-**Pennylane MCP Server** expose l'API Pennylane V2 sous forme de **87 outils MCP** utilisables par n'importe quel LLM compatible (Claude, GPT, Mistral, etc.).
+**Pennylane MCP Server** expose l'API Pennylane V2 sous forme de **157 outils, 8 prompts (commandes slash), 7 ressources directes et 5 templates de ressources MCP** utilisables par n'importe quel LLM compatible (Claude, GPT, Mistral, etc.).
 
 Il permet aux experts-comptables d'automatiser leurs opérations quotidiennes via un assistant IA : consultation du plan comptable, saisie d'écritures, lettrage, balance générale, gestion des factures, devis, et bien plus.
 
@@ -62,6 +65,13 @@ Le [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) est un proto
 ---
 
 ## Installation
+
+> [!TIP]
+> **Déploiement en Cabinet / Équipe (Zéro installation chez les collaborateurs) :**
+> Vous pouvez lancer le serveur une seule fois en mode **SSE (Server-Sent Events over HTTP)** via Docker (`docker compose up -d`). Vos collaborateurs n'auront ni Python ni Git à installer : il leur suffira d'ajouter l'URL du serveur dans leur Claude Desktop !  
+> 👉 **Consultez notre [Guide de Déploiement en Cabinet](GUIDE_DEPLOIEMENT_CABINET.md)**.
+
+### Installation Locale (Développeur / Poste unique)
 
 ```bash
 # 1. Clonez le dépôt
@@ -343,6 +353,36 @@ Une fois le serveur connecté à votre LLM, vous pouvez interagir en langage nat
 |-------|-------------|
 | `pennylane_whoami` | Vérifier la connexion et les informations société |
 
+### Prompts MCP (Commandes Slash paramétrables pour Claude Desktop)
+
+| Prompt / Commande | Paramètres (facultatifs) | Description |
+|-------------------|--------------------------|-------------|
+| `/relance_impayes_clients` | `jours_retard_min`, `client_prefix` | Workflow : Analyse des créances clients en retard et rédaction de relances |
+| `/audit_cloture_mensuelle` | `exercice`, `verifier_tva` | Workflow : Audit de santé et cohérence pour la clôture mensuelle |
+| `/synthese_chiffre_affaires` | `periode`, `comparaison_annuelle` | Workflow : Analyse détaillée et ventilation du Chiffre d'Affaires |
+| `/comparatif_multi_dossiers` | `seuil_alertes`, `inclure_details` | Workflow : Comparaison comparative de la balance entre dossiers |
+| `/rapprochement_bancaire_ia` | `seuil_confiance`, `inclure_regles_recurrentes` | Workflow : Rapprochement bancaire IA et lettrage automatique |
+| `/diagnostic_facturation_electronique` | `verifier_annuaire_pa`, `seuil_top_tiers` | Workflow : Diagnostic de conformité E-Invoicing (PPF/PA) |
+| `/audit_analytique_rentabilite` | `axe_prioritaire`, `inclure_non_ventiles` | Workflow : Audit analytique et calcul de rentabilité par projet |
+| `/verification_conformite_fec_tva` | `type_fec`, `controle_cadrage_tva` | Workflow : Contrôle légal avant export FEC et cadrage TVA |
+
+### Ressources MCP (Directes et Resource Templates dynamiques)
+
+| URI de la ressource | Type | Description |
+|---------------------|------|-------------|
+| `pennylane://dossier/current` | Directe (`application/json`) | Expose les informations et le statut du dossier client en cours |
+| `pennylane://comptes/classes` | Directe (`text/markdown`) | Expose la logique et la structure du Plan Comptable Général (PCG) |
+| `pennylane://journaux/actifs` | Directe (`application/json`) | Expose la liste des journaux comptables actifs |
+| `pennylane://guide/e-invoicing` | Directe (`text/markdown`) | Guide réglementaire et formats (Factur-X) de la facturation électronique |
+| `pennylane://guide/analytique` | Directe (`text/markdown`) | Guide sur la comptabilité analytique (groupes, axes, poids weight=1.0) |
+| `pennylane://guide/workflows` | Directe (`text/markdown`) | Guide synoptique des 8 commandes slash pour aider l'IA |
+| `pennylane://devis/en_attente` | Directe (`application/json`) | Expose la liste des devis clients en attente de signature |
+| `pennylane://dossier/{slug}/info` | Template dynamique | Métadonnées d'un dossier client spécifique via son slug |
+| `pennylane://compte/{account_number}` | Template dynamique | Détail et solde d'un compte comptable spécifique par numéro |
+| `pennylane://client/{customer_id}/encours` | Template dynamique | Encours et détail des factures impayées d'un client par ID |
+| `pennylane://fournisseur/{supplier_id}/encours` | Template dynamique | Encours et détail des factures à payer d'un fournisseur par ID |
+| `pennylane://journal/{journal_code}/recent` | Template dynamique | Expose les 20 dernières écritures d'un journal par son code |
+
 ---
 
 ## Architecture
@@ -356,12 +396,14 @@ pennylane-mcp-server/
 ├── LICENSE                     # Licence MIT
 │
 └── src/pennylane_mcp/          # Code source
-    ├── server.py               # Point d'entrée FastMCP
+    ├── server.py               # Point d'entrée FastMCP (avec Instructions Claude)
     ├── constants.py            # URLs, limites, constantes
     ├── models.py               # Modèles Pydantic (validation stricte)
-    ├── api.py                  # Client httpx async (multi-dossier aware)
+    ├── api.py                  # Client httpx async (multi-dossier aware + auto-correction)
     ├── utils.py                # Formatage, pagination, troncature
     ├── dossier_manager.py      # Gestionnaire multi-dossiers (singleton)
+    ├── prompts/                # Workflows et commandes slash MCP (architecture modulaire en .md)
+    ├── resources/              # Ressources MCP en lecture instantanée (avec documentation en .md)
     │
     └── tools/                  # Outils MCP répartis par domaine
         ├── me.py               # Connexion
@@ -378,8 +420,15 @@ pennylane-mcp-server/
         ├── products.py         # Produits / services
         ├── billing_subscriptions.py # Abonnements
         ├── categories.py       # Catégories analytiques
-        ├── exports.py          # Exports FEC / AGL
+        ├── exports.py          # Exports FEC / AGL / GL
         ├── changelogs.py       # Journaux de modifications
+        ├── bank_accounts.py    # Comptes bancaires & établissements
+        ├── transactions.py     # Transactions bancaires & lettrage
+        ├── mandates.py         # Mandats SEPA / GoCardless / Pro Account
+        ├── commercial_documents.py # Documents commerciaux
+        ├── purchase_requests.py # Demandes d'achats & bons de commande
+        ├── pa_registrations.py # Statut e-invoicing Plateforme Agréée
+        ├── file_attachments.py # Pièces jointes & annexes (upload / get)
         └── dossiers.py         # Multi-dossiers
 ```
 

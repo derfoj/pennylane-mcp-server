@@ -44,36 +44,37 @@ Pennylane est une plateforme de comptabilité collaborative française. Elle cen
 2. **Mono-dossier** (rétrocompatible) : variable `PENNYLANE_API_TOKEN`, crée un dossier "default" dans le manager.
 3. **Mode initial** : ni fichier ni token, le serveur démarre vide et attend l'ajout d'un dossier via outil MCP.
 
-### 28 outils MCP
+### 157 outils, 8 prompts et 12 ressources MCP
 
-| Domaine | Outils | Fichier |
-|---------|--------|---------|
-| Multi-dossiers | `list_dossiers`, `current_dossier`, `switch_dossier`, `add_dossier`, `remove_dossier`, `multi_dossier_query` | `tools/dossiers.py` |
-| Connexion | `pennylane_whoami` | `tools/me.py` |
-| Comptes | `list_accounts`, `get_account`, `create_account`, `update_account` | `tools/accounts.py` |
-| Journaux | `list_journals`, `get_journal`, `create_journal` | `tools/journals.py` |
-| Écritures | `list_entries`, `get_entry`, `create_entry`, `update_entry`, `list_entry_lines` | `tools/entries.py` |
-| Lignes | `list_all_entry_lines`, `get_entry_line`, `letter_lines`, `unletter_lines`, `link_categories`, `list_line_categories`, `list_lettered_lines` | `tools/entry_lines.py` |
-| Balance | `get_trial_balance`, `list_fiscal_years` | `tools/trial_balance.py` |
+| Domaine | Fichiers | Outils principaux |
+|---------|----------|-------------------|
+| Multi-dossiers | `tools/dossiers.py` | `list_dossiers`, `current_dossier`, `switch_dossier`, `add_dossier`, `remove_dossier`, `multi_dossier_query` |
+| Connexion & Société | `tools/me.py` | `pennylane_whoami` |
+| Plan comptable | `tools/accounts.py` | `list_accounts`, `get_account`, `create_account`, `update_account` |
+| Journaux & Écritures | `tools/journals.py`, `entries.py`, `entry_lines.py` | CRUD journaux, écritures, lignes, lettrage, délettrage, ventilation analytique |
+| Balance & Exercices | `tools/trial_balance.py` | `get_trial_balance`, `list_fiscal_years` |
+| Tiers (Clients/Fournisseurs) | `tools/customers.py`, `suppliers.py` | CRUD tiers, catégorisation analytique |
+| Facturation Clients | `tools/customer_invoices.py` | CRUD factures, finalisation, paiement, e-invoicing PA, templates, annexes |
+| Facturation Fournisseurs | `tools/supplier_invoices.py` | Consultation, maj, paiement, statut e-invoicing PA, import OCR avec pièce jointe |
+| Devis & Produits | `tools/quotes.py`, `products.py` | CRUD devis, envoi email, annexes, catalogue produits & services |
+| Analytique & Abonnements | `tools/categories.py`, `billing_subscriptions.py` | Axes analytiques, abonnements récurrents |
+| Banque & Trésorerie | `tools/bank_accounts.py`, `transactions.py`, `mandates.py` | Comptes bancaires, rapprochement, lettrage bancaire, mandats SEPA/GoCardless |
+| Achats & Commerce | `tools/commercial_documents.py`, `purchase_requests.py` | Documents commerciaux, demandes d'achats, bons de commande |
+| Administration & E-invoicing | `tools/exports.py`, `changelogs.py`, `pa_registrations.py`, `file_attachments.py` | Exports FEC/GL/AGL, changelogs, statut PA, gestion des pièces jointes |
 
 ### Structure du code
 
 ```
 src/pennylane_mcp/
-├── server.py            — FastMCP + lifespan multi-mode (dossiers.json / PENNYLANE_API_TOKEN / vide)
+├── server.py            — FastMCP + lifespan multi-mode (avec Instructions de Serveur enrichies)
 ├── constants.py         — API_BASE_URL, CHARACTER_LIMIT, constantes multi-dossiers
-├── models.py            — 27+ modèles Pydantic (entrées outils + DossierConfig/Info)
-├── api.py               — Client httpx async (api_get/post/put/delete + dossier_slug optionnel + api_get_multi)
+├── models.py            — Modèles Pydantic (validation stricte)
+├── api.py               — Client httpx async (multi-dossier + retry auto backoff 429/5xx + auto-correction /me)
 ├── utils.py             — truncate_if_needed, pagination_summary, to_json
 ├── dossier_manager.py   — DossierManager : pool de clients, switch, CRUD dossiers, requêtes parallèles
-└── tools/               — 7 modules, chacun avec register(mcp)
-    ├── dossiers.py      — 6 outils gestion multi-dossiers
-    ├── me.py            — pennylane_whoami
-    ├── accounts.py      — 4 outils comptes
-    ├── journals.py      — 3 outils journaux
-    ├── entries.py       — 5 outils écritures
-    ├── entry_lines.py   — 7 outils lignes (lettrage, analytique)
-    └── trial_balance.py — 2 outils balance + exercices
+├── prompts/             — 8 Workflows et commandes slash en fichiers Markdown (.md)
+├── resources/           — 12 Ressources MCP et templates (7 directes + 5 templates en .md et JSON)
+├── tools/               — 24 modules spécialisés, chacun avec register(mcp)
 ```
 
 ### Choix techniques

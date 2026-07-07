@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
-from ..api import api_get, api_post, api_put
+from ..api import api_delete, api_get, api_post, api_put
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -276,3 +276,276 @@ def register(mcp: FastMCP) -> None:
             return f"✅ Facture client {id} marquée comme payée.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Supprimer un brouillon de facture client ──────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_delete_draft_customer_invoice",
+        description="Supprime définitivement un brouillon de facture client.",
+        annotations={
+            "title": "Supprimer un brouillon de facture client",
+            "readOnlyHint": False,
+            "destructiveHint": True,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_delete_draft_customer_invoice(
+        id: Annotated[int, Field(description="Identifiant de la facture brouillon à supprimer.")],
+    ) -> str:
+        """Supprime une facture client en statut brouillon (draft)."""
+        try:
+            await api_delete(f"/customer_invoices/{id}")
+            return f"✅ Facture client brouillon {id} supprimée avec succès."
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Catégoriser une facture client ────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_categorize_customer_invoice",
+        description="Met à jour la ventilation analytique (catégories et poids) d'une facture client.",
+        annotations={
+            "title": "Catégoriser une facture client",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_categorize_customer_invoice(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+    ) -> str:
+        """Affecte des catégories analytiques à une facture client."""
+        try:
+            body = {"categories": categories}
+            data = await api_put(f"/customer_invoices/{id}/categories", body)
+            return f"✅ Catégories de la facture client {id} mises à jour.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les catégories d'une facture client ────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_invoice_categories",
+        description="Consulte les catégories analytiques associées à une facture client.",
+        annotations={
+            "title": "Catégories d'une facture client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_invoice_categories(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+    ) -> str:
+        """Liste la ventilation analytique d'une facture client."""
+        try:
+            data = await api_get(f"/customer_invoices/{id}/categories")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Envoyer facture électronique au PA ────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_send_customer_invoice_to_pa",
+        description="Envoie une facture client électronique finalisée à la Plateforme Agréée (PA).",
+        annotations={
+            "title": "Envoyer facture client au PA (e-invoicing)",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_send_customer_invoice_to_pa(
+        id: Annotated[int, Field(description="Identifiant de la facture client à envoyer au PA.")],
+    ) -> str:
+        """Transmet une facture électronique client vers le réseau PA / PPF."""
+        try:
+            data = await api_post(f"/customer_invoices/{id}/send_to_pa", {})
+            return f"✅ Facture client {id} transmise avec succès à la Plateforme Agréée.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Importer une facture client électronique (e-invoice) ──────────────────
+
+    @mcp.tool(
+        name="pennylane_import_customer_einvoice",
+        description="Importe une facture client électronique au format Factur-X PDF ou XML (UBL/CII).",
+        annotations={
+            "title": "Importer facture client électronique",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_import_customer_einvoice(
+        file_attachment_id: Annotated[int, Field(description="ID du fichier uploadé contenant la facture Factur-X/XML.")],
+    ) -> str:
+        """Importe et convertit une facture électronique émise."""
+        try:
+            body = {"file_attachment_id": file_attachment_id}
+            data = await api_post("/customer_invoices/e_invoice_import", body)
+            return f"✅ Facture électronique importée avec succès (id: {data.get('id')}).\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les modèles de facture client ──────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_invoice_templates",
+        description="Liste les modèles (templates) de facturation client disponibles sur le dossier.",
+        annotations={
+            "title": "Modèles de facture client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_invoice_templates(
+        cursor: Annotated[Optional[str], Field(default=None, description="Curseur pour la pagination.")] = None,
+        limit: Annotated[int, Field(default=20, ge=1, le=100, description="Nombre de résultats (1-100, défaut: 20).")] = 20,
+    ) -> str:
+        """Consulte les templates pour la création de factures clients."""
+        try:
+            qp: dict = {"limit": limit}
+            if cursor:
+                qp["cursor"] = cursor
+            data = await api_get("/customer_invoice_templates", qp)
+            items = data.get("items", [])
+            result = {
+                "templates": items,
+                "pagination": pagination_summary(
+                    data.get("has_more"), data.get("next_cursor"),
+                    data.get("total_items"), len(items),
+                ),
+                "next_cursor": data.get("next_cursor"),
+            }
+            return truncate_if_needed(to_json(result))
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Créer une facture client depuis un devis ──────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_create_customer_invoice_from_quote",
+        description="Crée automatiquement une nouvelle facture client en brouillon à partir d'un devis accepté.",
+        annotations={
+            "title": "Créer facture depuis un devis",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_create_customer_invoice_from_quote(
+        quote_id: Annotated[int, Field(description="Identifiant du devis à facturer.")],
+    ) -> str:
+        """Transforme un devis (quote) en facture client brouillon."""
+        try:
+            body = {"quote_id": quote_id}
+            data = await api_post("/customer_invoices/from_quote", body)
+            return f"✅ Facture créée à partir du devis {quote_id} (id: {data.get('id')}).\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Annexes d'une facture client ──────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_invoice_appendices",
+        description="Liste les pièces jointes et annexes d'une facture client.",
+        annotations={
+            "title": "Annexes d'une facture client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_invoice_appendices(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+    ) -> str:
+        """Liste les fichiers annexes rattachés à la facture."""
+        try:
+            data = await api_get(f"/customer_invoices/{id}/appendices")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Transactions rapprochées d'une facture client ─────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_invoice_matched_transactions",
+        description="Liste les règlements bancaires rapprochés d'une facture client.",
+        annotations={
+            "title": "Transactions rapprochées facture client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_invoice_matched_transactions(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+    ) -> str:
+        """Consulte les paiements bancaires rattachés à la facture client."""
+        try:
+            data = await api_get(f"/customer_invoices/{id}/matched_transactions")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Paiements d'une facture client ────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_customer_invoice_payments",
+        description="Liste l'historique des paiements et règlements enregistrés pour une facture client.",
+        annotations={
+            "title": "Paiements d'une facture client",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_customer_invoice_payments(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+    ) -> str:
+        """Consulte les règlements affectés à la facture."""
+        try:
+            data = await api_get(f"/customer_invoices/{id}/payments")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lier un avoir à une facture client ────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_link_customer_invoice_credit_note",
+        description="Associe un avoir (credit note) à une facture client.",
+        annotations={
+            "title": "Lier un avoir à une facture client",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_link_customer_invoice_credit_note(
+        id: Annotated[int, Field(description="Identifiant de la facture client.")],
+        credit_note_id: Annotated[int, Field(description="Identifiant de l'avoir à lier.")],
+    ) -> str:
+        """Lie une note de crédit / avoir à la facture d'origine."""
+        try:
+            body = {"credit_note_id": credit_note_id}
+            data = await api_post(f"/customer_invoices/{id}/linked_credit_notes", body)
+            return f"✅ Avoir {credit_note_id} rattaché à la facture client {id}.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+

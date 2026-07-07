@@ -1,4 +1,4 @@
-"""Outils MCP : exports comptables (FEC, Grand Livre Analytique)."""
+"""Outils MCP : exports comptables (FEC, Grand Livre Général, Grand Livre Analytique)."""
 
 from __future__ import annotations
 
@@ -143,3 +143,65 @@ def register(mcp: FastMCP) -> None:
             return f"{msg}\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Créer un export Grand Livre (GL) ──────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_create_gl_export",
+        description="Crée de manière asynchrone un export Grand Livre comptable général (GL) pour une période.",
+        annotations={
+            "title": "Créer un export Grand Livre (GL)",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": False,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_create_gl_export(
+        period_start: Annotated[str, Field(description="Début de période (YYYY-MM-DD).")],
+        period_end: Annotated[str, Field(description="Fin de période (YYYY-MM-DD).")],
+    ) -> str:
+        """Crée un export Grand Livre (GL) pour une période donnée.
+        L'export est asynchrone : utilisez pennylane_get_gl_export pour
+        récupérer le fichier.
+        """
+        try:
+            body = {"period_start": period_start, "period_end": period_end}
+            data = await api_post("/exports/general_ledger", body)
+            return (
+                f"✅ Export Grand Livre créé (id: {data.get('id')}, "
+                f"statut: {data.get('status')}).\n"
+                f"Utilisez pennylane_get_gl_export pour vérifier le statut.\n\n"
+                f"{to_json(data)}"
+            )
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Récupérer un export Grand Livre (GL) ──────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_get_gl_export",
+        description="Récupère le statut et l'URL de téléchargement d'un export Grand Livre (GL).",
+        annotations={
+            "title": "Récupérer un export Grand Livre (GL)",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_get_gl_export(
+        id: Annotated[int, Field(description="Identifiant de l'export GL.")],
+    ) -> str:
+        """Récupère le détail et le lien d'un export Grand Livre."""
+        try:
+            data = await api_get(f"/exports/general_ledger/{id}")
+            status = data.get("status", "unknown")
+            file_url = data.get("file_url")
+            msg = f"📊 Export Grand Livre (id: {id}) — Statut: {status}"
+            if file_url:
+                msg += f"\n🔗 URL de téléchargement (expire dans 10 min): {file_url}"
+            return f"{msg}\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+

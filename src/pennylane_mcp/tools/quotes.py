@@ -331,3 +331,52 @@ def register(mcp: FastMCP) -> None:
             return truncate_if_needed(to_json(result))
         except Exception as exc:
             return f"❌ {exc}"
+
+    # ── Lister les annexes d'un devis ─────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_quote_appendices",
+        description="Liste les pièces jointes et annexes rattachées à un devis.",
+        annotations={
+            "title": "Annexes d'un devis",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_quote_appendices(
+        id: Annotated[int, Field(description="Identifiant du devis.")],
+    ) -> str:
+        """Consulte la liste des fichiers et documents joints à un devis."""
+        try:
+            data = await api_get(f"/quotes/{id}/appendices")
+            return to_json(data)
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Ajouter une annexe à un devis ─────────────────────────────────────────
+
+    @mcp.tool(
+        name="pennylane_upload_quote_appendix",
+        description="Associe un fichier joint préalablement uploadé en tant qu'annexe d'un devis.",
+        annotations={
+            "title": "Ajouter une annexe au devis",
+            "readOnlyHint": False,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_upload_quote_appendix(
+        id: Annotated[int, Field(description="Identifiant du devis.")],
+        file_attachment_id: Annotated[int, Field(description="ID du fichier uploadé via pennylane_upload_file.")],
+    ) -> str:
+        """Ajoute une pièce jointe (annexe) à un devis existant."""
+        try:
+            body = {"file_attachment_id": file_attachment_id}
+            data = await api_post(f"/quotes/{id}/appendices", body)
+            return f"✅ Annexe rattachée au devis {id}.\n\n{to_json(data)}"
+        except Exception as exc:
+            return f"❌ {exc}"
+
