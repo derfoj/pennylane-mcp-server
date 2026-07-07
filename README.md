@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">🧾 Pennylane MCP Server</h1>
+  <h1 align="center">Pennylane MCP Server</h1>
   <p align="center">
     <img src="mcp_pennylane.jpeg" alt="Pennylane MCP Server - Assistant IA Expert-Comptable" width="800" />
   </p>
@@ -14,7 +14,10 @@
     <a href="#utilisation">Utilisation</a>
   </p>
 </p>
-
+<br>
+  <h2>NOTE:</h2>
+<br/>
+<p> J'me suis basé sur le repos original et je l'ai améliorer plutot que de partir de zero et créer mon propre MCP, merci encore à melvinBuilds pour le travail realiser sur la première version</p>
 ---
 
 ## Présentation
