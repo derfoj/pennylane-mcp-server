@@ -9,6 +9,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
 from ..api import api_get, api_post, api_put
+from ..models import InvoiceLineInput
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -123,7 +124,7 @@ def register(mcp: FastMCP) -> None:
         payment_method: Annotated[str, Field(
             description="Méthode de paiement : 'offline' ou 'gocardless_direct_debit'.",
         )],
-        invoice_lines: Annotated[list, Field(
+        invoice_lines: Annotated[list[InvoiceLineInput], Field(
             description=(
                 "Lignes de facturation. Chaque ligne : "
                 "{label: str, quantity: number, raw_currency_unit_price: str, "

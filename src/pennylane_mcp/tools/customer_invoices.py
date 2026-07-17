@@ -9,6 +9,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
 from ..api import api_delete, api_get, api_post, api_put
+from ..models import CategoryWeight, InvoiceLineInput
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -112,7 +113,7 @@ def register(mcp: FastMCP) -> None:
         customer_id: Annotated[int, Field(description="ID du client à facturer.")],
         date: Annotated[str, Field(description="Date de la facture (YYYY-MM-DD).")],
         deadline: Annotated[str, Field(description="Date d'échéance (YYYY-MM-DD).")],
-        invoice_lines: Annotated[list, Field(
+        invoice_lines: Annotated[list[InvoiceLineInput], Field(
             description="Lignes de facture. Chaque ligne : "
             "{product_id: int, quantity: number, label: str, unit: str, "
             "vat_rate: str, price_before_tax: str, discount: str (optionnel)}.",
@@ -315,7 +316,7 @@ def register(mcp: FastMCP) -> None:
     )
     async def pennylane_categorize_customer_invoice(
         id: Annotated[int, Field(description="Identifiant de la facture client.")],
-        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+        categories: Annotated[list[CategoryWeight], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
     ) -> str:
         """Affecte des catégories analytiques à une facture client."""
         try:

@@ -19,6 +19,7 @@ from typing import Any, Optional
 import httpx
 
 from .constants import API_BASE_URL
+from .utils import dump_pydantic
 
 # ─── Legacy : client unique (rétrocompatibilité) ─────────────────────────────
 
@@ -117,6 +118,8 @@ async def api_get(
     """GET vers l'API Pennylane avec retry automatique."""
     try:
         client = await _resolve_client(dossier_slug)
+        if params is not None:
+            params = dump_pydantic(params)
         resp = await _request_with_retry(client, "GET", endpoint, params=params)
         return resp.json()
     except httpx.HTTPStatusError as exc:
@@ -140,6 +143,8 @@ async def api_post(
     """POST vers l'API Pennylane avec retry automatique."""
     try:
         client = await _resolve_client(dossier_slug)
+        if data is not None:
+            data = dump_pydantic(data)
         resp = await _request_with_retry(client, "POST", endpoint, json=data)
         # Certains POST renvoient 204 ou un body vide (ex: send_by_email)
         if resp.status_code == 204 or not resp.content:
@@ -162,6 +167,8 @@ async def api_put(
     """PUT vers l'API Pennylane avec retry automatique."""
     try:
         client = await _resolve_client(dossier_slug)
+        if data is not None:
+            data = dump_pydantic(data)
         resp = await _request_with_retry(client, "PUT", endpoint, json=data)
         # Certains PUT renvoient 204 ou un body vide
         if resp.status_code == 204 or not resp.content:
@@ -184,6 +191,8 @@ async def api_delete(
     """DELETE vers l'API Pennylane avec retry automatique."""
     try:
         client = await _resolve_client(dossier_slug)
+        if data is not None:
+            data = dump_pydantic(data)
         resp = await _request_with_retry(client, "DELETE", endpoint, json=data)
         # Certains DELETE renvoient 204 sans body
         if resp.status_code == 204:

@@ -5,7 +5,20 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
+from pydantic import BaseModel
+
 from .constants import CHARACTER_LIMIT
+
+
+def dump_pydantic(obj: Any) -> Any:
+    """Convertit récursivement les modèles Pydantic en dicts/structures compatibles JSON."""
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode="json", exclude_none=True)
+    if isinstance(obj, dict):
+        return {k: dump_pydantic(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple, set)):
+        return [dump_pydantic(item) for item in obj]
+    return obj
 
 
 def truncate_if_needed(text: str, hint: str | None = None) -> str:
@@ -41,4 +54,5 @@ def pagination_summary(
 
 def to_json(data: Any) -> str:
     """Sérialise en JSON indenté."""
-    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    return json.dumps(dump_pydantic(data), indent=2, ensure_ascii=False, default=str)
+

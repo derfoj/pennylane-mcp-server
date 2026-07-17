@@ -9,6 +9,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
 from ..api import api_get, api_post, api_put
+from ..models import CategoryWeight
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -204,7 +205,7 @@ def register(mcp: FastMCP) -> None:
     )
     async def pennylane_categorize_product(
         id: Annotated[int, Field(description="Identifiant du produit.")],
-        categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
+        categories: Annotated[list[CategoryWeight], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
     ) -> str:
         """Affecte des axes analytiques par défaut à un produit du catalogue."""
         try:

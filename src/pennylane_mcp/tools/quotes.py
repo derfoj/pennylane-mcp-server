@@ -9,6 +9,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
 from ..api import api_get, api_post, api_put
+from ..models import InvoiceLineInput
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -109,7 +110,7 @@ def register(mcp: FastMCP) -> None:
         customer_id: Annotated[int, Field(description="ID du client à devisé.")],
         date: Annotated[str, Field(description="Date du devis (YYYY-MM-DD).")],
         deadline: Annotated[str, Field(description="Date limite de validité (YYYY-MM-DD).")],
-        invoice_lines: Annotated[list, Field(
+        invoice_lines: Annotated[list[InvoiceLineInput], Field(
             description=(
                 "Lignes du devis. Chaque ligne : "
                 "{label: str, quantity: number, raw_currency_unit_price: str, "

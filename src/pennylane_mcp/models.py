@@ -147,7 +147,7 @@ class CreateJournalInput(BaseModel):
 class EntryLineInput(BaseModel):
     """Ligne d'écriture comptable à créer."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     ledger_account_id: int = Field(
         ..., description="ID du compte comptable pour cette ligne."
@@ -306,12 +306,27 @@ class UnletterLinesInput(BaseModel):
 
 
 class CategoryWeight(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     id: int = Field(..., description="ID de la catégorie analytique.")
     weight: str = Field(
         default="1",
         description="Poids (0 à 1, ex: '0.5' pour 50%). Somme = 1.",
     )
+
+
+class InvoiceLineInput(BaseModel):
+    """Ligne de facture (client/fournisseur) ou de devis."""
+
+    model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
+
+    label: str = Field(..., description="Libellé / description de la ligne.")
+    quantity: Optional[str] = Field(default="1", description="Quantité (string, ex: '1' ou '2.5').")
+    unit_price: Optional[str] = Field(default="0", description="Prix unitaire HT ou TTC en string (ex: '100.00').")
+    vat_rate: Optional[str] = Field(default=None, description="Taux de TVA (ex: 'FR_200' pour 20%, 'FR_100' pour 10%, 'exempt').")
+    product_id: Optional[int] = Field(default=None, description="ID du produit catalogue associé.")
+    ledger_account_id: Optional[int] = Field(default=None, description="ID du compte comptable associé.")
+    categories: Optional[list[CategoryWeight]] = Field(default=None, description="Catégories analytiques avec poids.")
+
 
 
 class LinkCategoriesInput(BaseModel):

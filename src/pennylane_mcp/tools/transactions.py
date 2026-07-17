@@ -9,6 +9,7 @@ from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
 from ..api import api_delete, api_get, api_post, api_put
+from ..models import CategoryWeight
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -168,7 +169,7 @@ def register(mcp: FastMCP) -> None:
     )
     async def pennylane_categorize_transaction(
         id: Annotated[int, Field(description="Identifiant de la transaction.")],
-        categories: Annotated[list[dict[str, Any]], Field(
+        categories: Annotated[list[CategoryWeight], Field(
             description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}]. La somme des poids par groupe doit valoir 1.",
         )],
     ) -> str:
