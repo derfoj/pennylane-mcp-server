@@ -44,7 +44,7 @@ Pennylane est une plateforme de comptabilité collaborative française. Elle cen
 2. **Mono-dossier** (rétrocompatible) : variable `PENNYLANE_API_TOKEN`, crée un dossier "default" dans le manager.
 3. **Mode initial** : ni fichier ni token, le serveur démarre vide et attend l'ajout d'un dossier via outil MCP.
 
-### 157 outils, 8 prompts et 12 ressources MCP
+### 158 outils, 8 prompts et 12 ressources MCP
 
 | Domaine | Fichiers | Outils principaux |
 |---------|----------|-------------------|
@@ -68,9 +68,9 @@ Pennylane est une plateforme de comptabilité collaborative française. Elle cen
 src/pennylane_mcp/
 ├── server.py            — FastMCP + lifespan multi-mode (avec Instructions de Serveur enrichies)
 ├── constants.py         — API_BASE_URL, CHARACTER_LIMIT, constantes multi-dossiers
-├── models.py            — Modèles Pydantic (validation stricte)
-├── api.py               — Client httpx async (multi-dossier + retry auto backoff 429/5xx + auto-correction /me)
-├── utils.py             — truncate_if_needed, pagination_summary, to_json
+├── models.py            — Modèles Pydantic (validation stricte + modèles typés pour listes : CategoryWeight, InvoiceLineInput, EntryLineInput)
+├── api.py               — Client httpx async (multi-dossier + retry auto backoff 429/5xx + auto-correction /me + sérialisation dump_pydantic)
+├── utils.py             — truncate_if_needed, pagination_summary, to_json, dump_pydantic
 ├── dossier_manager.py   — DossierManager : pool de clients, switch, CRUD dossiers, requêtes parallèles
 ├── prompts/             — 8 Workflows et commandes slash en fichiers Markdown (.md)
 ├── resources/           — 12 Ressources MCP et templates (7 directes + 5 templates en .md et JSON)
@@ -79,15 +79,16 @@ src/pennylane_mcp/
 
 ### Choix techniques
 
-1. **Python + FastMCP** : framework MCP officiel, décorateurs `@mcp.tool`
-2. **Pydantic v2** : validation stricte des entrées (`extra="forbid"`, contraintes `ge/le/min_length`)
-3. **httpx async** : requêtes HTTP non-bloquantes avec timeout 30s
-4. **Lifespan multi-mode** : détection auto du mode (dossiers.json → PENNYLANE_API_TOKEN → vide)
-5. **DossierManager** : singleton gérant un pool de clients httpx, un par dossier, avec masquage des tokens
-6. **Rétrocompatibilité** : `api_get/post/put/delete` acceptent un `dossier_slug` optionnel en keyword-only
-7. **Requêtes parallèles** : `api_get_multi()` et `DossierManager.parallel_get()` via `asyncio.gather()`
-8. **Erreurs en français** : messages actionnables, préfixés par le nom du dossier si applicable
-9. **Transport stdio** : intégration locale (Claude Desktop). Passable en HTTP pour la plateforme.
+1. **Python + FastMCP** : framework MCP officiel, décorateurs `@mcp.tool` supportant 158 outils hautement structurés.
+2. **Pydantic v2 intégral** : élimination de tous les types `list` non typés et `list[dict]` dans les signatures d'outils au profit de modèles Pydantic structurés (`CategoryWeight`, `InvoiceLineInput`, `EntryLineInput` avec `str_strip_whitespace=True`).
+3. **Sérialisation universelle (`dump_pydantic`)** : transformation automatique de tous les modèles Pydantic et structures imbriquées en types compatibles JSON dans `api.py` (`mode="json"`), empêchant toute exception `TypeError: not JSON serializable`.
+4. **Conformité API V2 stricte** : respect des chemins officiels et pluralisation (ex. `POST/GET /exports/general_ledgers`).
+5. **httpx async & résilience** : requêtes HTTP non-bloquantes avec timeout 30s et retry auto sur `429 Too Many Requests` / `5xx`.
+6. **Lifespan multi-mode** : détection auto du mode (`dossiers.json` → `PENNYLANE_API_TOKEN` → vide).
+7. **DossierManager** : singleton gérant un pool de clients httpx, un par dossier, avec masquage des tokens.
+8. **Requêtes parallèles** : `api_get_multi()` et `DossierManager.parallel_get()` via `asyncio.gather()`.
+9. **Erreurs actionnables en français** : messages d'erreur formatés et explicites pour guider le LLM (`_format_error`).
+10. **Transport stdio & SSE** : intégration locale (Claude Desktop) et distante sur HTTP via `MCP_TRANSPORT=sse`.
 
 ### Configuration multi-dossiers (dossiers.json)
 

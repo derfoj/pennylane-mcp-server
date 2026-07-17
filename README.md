@@ -22,7 +22,7 @@
 
 ## Présentation
 
-**Pennylane MCP Server** expose l'API Pennylane V2 sous forme de **157 outils, 8 prompts (commandes slash), 7 ressources directes et 5 templates de ressources MCP** utilisables par n'importe quel LLM compatible (Claude, GPT, Mistral, etc.).
+**Pennylane MCP Server** expose l'API Pennylane V2 sous forme de **158 outils, 8 prompts (commandes slash), 7 ressources directes et 5 templates de ressources MCP** utilisables par n'importe quel LLM compatible (Claude, GPT, Mistral, etc.).
 
 Il permet aux experts-comptables d'automatiser leurs opérations quotidiennes via un assistant IA : consultation du plan comptable, saisie d'écritures, lettrage, balance générale, gestion des factures, devis, et bien plus.
 
@@ -34,7 +34,8 @@ Les experts-comptables passent un temps considérable sur des tâches répétiti
 
 - **Gagner du temps** en automatisant la saisie, la consultation et le lettrage via le langage naturel
 - **Gérer un portefeuille clients** en basculant entre dossiers sans changer d'outil
-- **Fiabiliser les opérations** grâce à une validation stricte des données (Pydantic v2)
+- **Fiabiliser les opérations** grâce à une conformité OpenAPI stricte (Pennylane API V2) et un typage 100% Pydantic v2 (modèles structurés `CategoryWeight`, `InvoiceLineInput`, `EntryLineInput`)
+- **Éliminer les erreurs de sérialisation** grâce à un moteur de preprocessing universel (`dump_pydantic`) garantissant la compatibilité JSON de tous les flux
 - **Consolider les données** en interrogeant plusieurs dossiers en parallèle
 
 ### Qu'est-ce que MCP ?
@@ -441,9 +442,9 @@ pennylane-mcp-server/
 
 | Technologie | Rôle |
 |-------------|------|
-| [FastMCP](https://github.com/modelcontextprotocol/python-sdk) | Framework MCP Python officiel |
-| [httpx](https://www.python-httpx.org/) | Client HTTP asynchrone |
-| [Pydantic v2](https://docs.pydantic.dev/) | Validation stricte des entrées |
+| [FastMCP](https://github.com/modelcontextprotocol/python-sdk) | Framework MCP Python officiel (gérant 158 outils hautement typés) |
+| [httpx](https://www.python-httpx.org/) | Client HTTP asynchrone (avec retry automatique et backoff exponentiel) |
+| [Pydantic v2](https://docs.pydantic.dev/) | Validation stricte des entrées et sérialisation JSON universelle (`dump_pydantic`) |
 
 ---
 

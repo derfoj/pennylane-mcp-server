@@ -84,7 +84,7 @@ Sur le PC de chaque collaborateur (Windows, Mac ou Linux) qui utilise **Claude D
 ```
 
 4. **Enregistrez le fichier et redémarrez Claude Desktop.**  
-   🎉 **C'est tout !** L'icône du marteau (🛠️) apparaît dans Claude. Le collaborateur a accès à l'ensemble des **157 outils, 8 commandes slash et 12 ressources** sans avoir installé aucune ligne de code !
+   🎉 **C'est tout !** L'icône du marteau (🛠️) apparaît dans Claude. Le collaborateur a accès à l'ensemble des **158 outils, 8 commandes slash et 12 ressources** sans avoir installé aucune ligne de code !
 
 ---
 
