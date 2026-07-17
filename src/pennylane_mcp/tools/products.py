@@ -32,7 +32,11 @@ def register(mcp: FastMCP) -> None:
         limit: Annotated[int, Field(default=20, ge=1, le=100, description="Nombre de résultats (1-100, défaut: 20).")] = 20,
         label: Annotated[Optional[str], Field(
             default=None,
-            description="Filtrer par libellé du produit.",
+            description="Filtrer par libellé exact du produit (opérateur 'eq').",
+        )] = None,
+        label_prefix: Annotated[Optional[str], Field(
+            default=None,
+            description="Filtrer par début de libellé (opérateur 'start_with').",
         )] = None,
         sort: Annotated[Optional[str], Field(default=None, description="Tri: 'id', '-id' (défaut: '-id').")] = None,
     ) -> str:
@@ -49,6 +53,8 @@ def register(mcp: FastMCP) -> None:
             filters: list[dict] = []
             if label:
                 filters.append({"field": "label", "operator": "eq", "value": label})
+            if label_prefix:
+                filters.append({"field": "label", "operator": "start_with", "value": label_prefix})
             if filters:
                 qp["filter"] = json.dumps(filters)
 
@@ -206,10 +212,12 @@ def register(mcp: FastMCP) -> None:
         id: Annotated[int, Field(description="Identifiant du produit.")],
         categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
     ) -> str:
-        """Affecte des axes analytiques par défaut à un produit du catalogue."""
+        """Affecte des axes analytiques par défaut à un produit du catalogue.
+        Le body API est un tableau brut de {id, weight} ; les poids d'un même
+        groupe de catégories doivent totaliser 1.0.
+        """
         try:
-            body = {"categories": categories}
-            data = await api_put(f"/products/{id}/categories", body)
+            data = await api_put(f"/products/{id}/categories", categories)
             return f"✅ Catégories du produit {id} mises à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"

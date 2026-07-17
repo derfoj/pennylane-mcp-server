@@ -36,7 +36,12 @@ def register(mcp: FastMCP) -> None:
         )] = None,
         name: Annotated[Optional[str], Field(
             default=None,
-            description="Filtrer par nom (recherche partielle).",
+            description="Filtrer par nom (correspondance exacte, opérateur 'eq').",
+        )] = None,
+        name_prefix: Annotated[Optional[str], Field(
+            default=None,
+            description="Filtrer par début de nom (opérateur 'start_with' — seule recherche "
+            "partielle supportée par l'API).",
         )] = None,
         sort: Annotated[Optional[str], Field(default=None, description="Tri: 'id', '-id' (défaut: '-id').")] = None,
     ) -> str:
@@ -55,6 +60,8 @@ def register(mcp: FastMCP) -> None:
                 filters.append({"field": "customer_type", "operator": "eq", "value": customer_type})
             if name:
                 filters.append({"field": "name", "operator": "eq", "value": name})
+            if name_prefix:
+                filters.append({"field": "name", "operator": "start_with", "value": name_prefix})
             if filters:
                 qp["filter"] = json.dumps(filters)
 
@@ -327,10 +334,12 @@ def register(mcp: FastMCP) -> None:
         id: Annotated[int, Field(description="Identifiant du client.")],
         categories: Annotated[list[dict], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
     ) -> str:
-        """Affecte des axes analytiques par défaut à une fiche client."""
+        """Affecte des axes analytiques par défaut à une fiche client.
+        Le body API est un tableau brut de {id, weight} ; les poids d'un même
+        groupe de catégories doivent totaliser 1.0.
+        """
         try:
-            body = {"categories": categories}
-            data = await api_put(f"/customers/{id}/categories", body)
+            data = await api_put(f"/customers/{id}/categories", categories)
             return f"✅ Catégories du client {id} mises à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"

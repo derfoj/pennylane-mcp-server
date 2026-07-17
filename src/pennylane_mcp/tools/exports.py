@@ -167,7 +167,7 @@ def register(mcp: FastMCP) -> None:
         """
         try:
             body = {"period_start": period_start, "period_end": period_end}
-            data = await api_post("/exports/general_ledger", body)
+            data = await api_post("/exports/general_ledgers", body)
             return (
                 f"✅ Export Grand Livre créé (id: {data.get('id')}, "
                 f"statut: {data.get('status')}).\n"
@@ -195,7 +195,7 @@ def register(mcp: FastMCP) -> None:
     ) -> str:
         """Récupère le détail et le lien d'un export Grand Livre."""
         try:
-            data = await api_get(f"/exports/general_ledger/{id}")
+            data = await api_get(f"/exports/general_ledgers/{id}")
             status = data.get("status", "unknown")
             file_url = data.get("file_url")
             msg = f"📊 Export Grand Livre (id: {id}) — Statut: {status}"
