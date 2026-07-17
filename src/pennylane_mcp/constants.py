@@ -1,6 +1,7 @@
 """Constantes partagées pour le serveur MCP Pennylane."""
 
 API_BASE_URL = "https://app.pennylane.com/api/external/v2"
+FIRM_API_BASE_URL = "https://app.pennylane.com/api/external/firm/v1"
 
 CHARACTER_LIMIT = 25_000
 

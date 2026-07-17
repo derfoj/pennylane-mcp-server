@@ -174,8 +174,19 @@ def register(mcp: FastMCP) -> None:
         )],
         token: Annotated[str, Field(
             min_length=10,
-            description="Token API Pennylane (Company API Token).",
+            description=(
+                "Token API Pennylane : Company API Token, ou Firm API Token "
+                "(token cabinet) si company_id est fourni."
+            ),
         )],
+        company_id: Annotated[Optional[int], Field(
+            default=None,
+            description=(
+                "ID de la société Pennylane (header X-Company-Id). "
+                "Obligatoire avec un Firm API Token. "
+                "Utilisez pennylane_list_firm_companies pour trouver les IDs."
+            ),
+        )] = None,
         notes: Annotated[Optional[str], Field(
             default=None,
             max_length=500,
@@ -185,6 +196,10 @@ def register(mcp: FastMCP) -> None:
         """Ajoute un nouveau dossier comptable à la configuration.
         Le token est vérifié avec l'endpoint /me avant l'ajout.
         Si c'est le premier dossier, il devient automatiquement actif.
+
+        Deux modes d'authentification :
+        - Company API Token seul (un token par société)
+        - Firm API Token (token cabinet) + company_id de la société cible
         """
         try:
             manager = get_manager()
@@ -192,17 +207,26 @@ def register(mcp: FastMCP) -> None:
             # Vérifier le token avant d'ajouter
             from ..dossier_manager import _build_client
 
-            test_client = _build_client(token)
+            test_client = _build_client(token, company_id)
             try:
                 resp = await test_client.get("/me")
                 resp.raise_for_status()
                 me_data = resp.json()
             except Exception as verify_exc:
                 await test_client.aclose()
+                hint = (
+                    "Si vous utilisez un Firm API Token (token cabinet), "
+                    "fournissez aussi company_id."
+                    if company_id is None
+                    else "Vérifiez que company_id correspond bien à une "
+                    "société du portefeuille du cabinet."
+                )
                 return (
                     f"❌ Token invalide pour '{slug}' : {verify_exc}\n"
-                    "Vérifiez le token dans Pennylane > Paramètres > "
-                    "Connectivité > Développeurs."
+                    f"   {hint}\n"
+                    "   Tokens : Pennylane > Paramètres > Connectivité > "
+                    "Développeurs (société) ou Paramètres du cabinet > "
+                    "Firm Tokens (cabinet)."
                 )
             finally:
                 await test_client.aclose()
@@ -213,17 +237,25 @@ def register(mcp: FastMCP) -> None:
                 name=name,
                 token=token,
                 notes=notes,
+                company_id=company_id,
             )
 
+            company = me_data.get("company") or {}
             company_info = (
-                me_data.get("company_name")
+                company.get("name")
+                or me_data.get("company_name")
                 or me_data.get("email")
                 or "vérifié"
             )
 
+            mode = (
+                f"Firm token + X-Company-Id {company_id}"
+                if company_id is not None
+                else "Company token"
+            )
             return (
                 f"✅ Dossier '{name}' ({slug}) ajouté.\n"
-                f"   Connexion Pennylane : {company_info}\n"
+                f"   Connexion Pennylane : {company_info} ({mode})\n"
                 f"   Dossier actif : {manager.current_slug}"
             )
 
@@ -327,5 +359,111 @@ def register(mcp: FastMCP) -> None:
                 hint="Réduisez le nombre de dossiers ou utilisez des filtres plus restrictifs.",
             )
 
+        except Exception as exc:
+            return f"❌ {exc}"
+
+    # ── Lister les sociétés du cabinet (API Firm) ────────────────────────
+
+    @mcp.tool(
+        name="pennylane_list_firm_companies",
+        annotations={
+            "title": "Lister les sociétés du cabinet (API Firm)",
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": True,
+        },
+    )
+    async def pennylane_list_firm_companies(
+        token: Annotated[Optional[str], Field(
+            default=None,
+            description=(
+                "Firm API Token (token cabinet). Si omis, utilise le token "
+                "du dossier actif (qui doit être un Firm token)."
+            ),
+        )] = None,
+        page: Annotated[int, Field(
+            default=1, ge=1,
+            description="Page à récupérer (pagination classique, débute à 1).",
+        )] = 1,
+        per_page: Annotated[int, Field(
+            default=100, ge=1, le=1000,
+            description="Nombre de sociétés par page (max 1000).",
+        )] = 100,
+    ) -> str:
+        """Liste les sociétés (dossiers clients) du portefeuille du cabinet
+        via l'API Firm Pennylane. Nécessite un Firm API Token avec le scope
+        `companies:readonly`.
+
+        Utile pour récupérer les company_id à passer à pennylane_add_dossier
+        (mode Firm token + X-Company-Id).
+        """
+        import httpx as _httpx
+
+        from ..constants import FIRM_API_BASE_URL
+        from ..dossier_manager import get_manager as _get_manager
+
+        try:
+            firm_token = token
+            if firm_token is None:
+                manager = _get_manager()
+                slug = manager.current_slug
+                if slug is None:
+                    return (
+                        "❌ Aucun token fourni et aucun dossier actif. "
+                        "Passez le Firm API Token en paramètre."
+                    )
+                firm_token = manager._dossiers[slug].token  # noqa: SLF001
+
+            async with _httpx.AsyncClient(
+                base_url=FIRM_API_BASE_URL,
+                timeout=30.0,
+                headers={
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {firm_token}",
+                },
+            ) as client:
+                resp = await client.get(
+                    "/companies",
+                    params={"page": page, "per_page": per_page},
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+            items = data.get("items", [])
+            companies = [
+                {
+                    "company_id": c.get("id"),
+                    "name": c.get("name"),
+                    "siren": c.get("siren"),
+                    "client_code": c.get("client_code"),
+                    "city": c.get("city"),
+                }
+                for c in items
+            ]
+            result = {
+                "total_items": data.get("total_items"),
+                "current_page": data.get("current_page"),
+                "total_pages": data.get("total_pages"),
+                "companies": companies,
+            }
+            return truncate_if_needed(
+                f"🏢 {data.get('total_items', len(companies))} société(s) "
+                f"dans le portefeuille du cabinet.\n\n{to_json(result)}",
+                hint="Utilisez page/per_page pour paginer.",
+            )
+
+        except _httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 401:
+                return (
+                    "❌ Token invalide ou non-Firm (401). Cet outil requiert "
+                    "un Firm API Token (Paramètres du cabinet > Firm Tokens)."
+                )
+            if exc.response.status_code == 403:
+                return (
+                    "❌ Scope manquant (403) : le Firm token doit avoir "
+                    "`companies:readonly`."
+                )
+            return f"❌ Erreur API Firm ({exc.response.status_code}) : {exc}"
         except Exception as exc:
             return f"❌ {exc}"

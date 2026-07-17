@@ -37,7 +37,11 @@ Modes de fonctionnement :
   2. Mono-dossier : variable PENNYLANE_API_TOKEN (rétrocompatibilité)
 
 Variables d'environnement :
-    PENNYLANE_API_TOKEN   — Token Bearer (mode mono-dossier)
+    PENNYLANE_API_TOKEN   — Token Bearer (mode mono-dossier) : Company API
+                            Token, ou Firm API Token si PENNYLANE_COMPANY_ID
+                            est défini
+    PENNYLANE_COMPANY_ID  — ID société Pennylane (header X-Company-Id),
+                            requis avec un Firm API Token
     PENNYLANE_CONFIG_PATH — Chemin vers dossiers.json (optionnel)
     MCP_TRANSPORT         — Transport : 'stdio' (défaut) ou 'sse'
     MCP_HOST              — Hôte d'écoute SSE (défaut: 127.0.0.1)
@@ -86,13 +90,32 @@ from .tools import (
 )
 
 
+def _default_config_path() -> Path:
+    """Chemin par défaut (toujours accessible en écriture) pour dossiers.json.
+
+    Ne JAMAIS utiliser le répertoire courant : les clients MCP (Claude
+    Desktop, etc.) lancent souvent le serveur depuis un répertoire système
+    non inscriptible (ex: C:\\WINDOWS\\system32).
+
+    Windows : %APPDATA%\\pennylane-mcp\\dossiers.json
+    Autres  : ~/.config/pennylane-mcp/dossiers.json
+    """
+    if os.name == "nt":
+        base = Path(
+            os.environ.get("APPDATA", str(Path.home() / "AppData" / "Roaming"))
+        )
+        return base / "pennylane-mcp" / "dossiers.json"
+    return Path.home() / ".config" / "pennylane-mcp" / "dossiers.json"
+
+
 def _find_config_path() -> Path | None:
     """Recherche le fichier dossiers.json dans les emplacements habituels.
 
     Ordre de priorité :
     1. Variable d'environnement PENNYLANE_CONFIG_PATH
-    2. Répertoire courant : ./dossiers.json
-    3. Config utilisateur : ~/.config/pennylane-mcp/dossiers.json
+    2. Répertoire courant : ./dossiers.json (lecture seule, si déjà présent)
+    3. Config utilisateur : %APPDATA%\\pennylane-mcp (Windows)
+       ou ~/.config/pennylane-mcp (autres)
     """
     # 1. Variable d'environnement explicite
     env_path = os.environ.get("PENNYLANE_CONFIG_PATH")
@@ -109,7 +132,12 @@ def _find_config_path() -> Path | None:
     if cwd.exists():
         return cwd
 
-    # 3. Config utilisateur
+    # 3. Config utilisateur (APPDATA sous Windows, ~/.config ailleurs)
+    default = _default_config_path()
+    if default.exists():
+        return default
+
+    # Rétrocompatibilité : ancien emplacement ~/.config même sous Windows
     home_config = Path.home() / ".config" / "pennylane-mcp" / "dossiers.json"
     if home_config.exists():
         return home_config
@@ -161,7 +189,7 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
         # permettre l'ajout dynamique de dossiers via les outils
         if config_path is None:
             # Définir un chemin par défaut pour la sauvegarde
-            config_path = Path.cwd() / "dossiers.json"
+            config_path = _default_config_path()
 
         manager = DossierManager(config_path)
         set_manager(manager)
@@ -184,19 +212,38 @@ async def lifespan(server: FastMCP) -> AsyncIterator[dict]:
     # Mode mono-dossier avec PENNYLANE_API_TOKEN
     # On crée quand même un DossierManager pour uniformiser l'accès
     if config_path is None:
-        config_path = Path.cwd() / "dossiers.json"
+        config_path = _default_config_path()
+
+    # PENNYLANE_COMPANY_ID : à définir si PENNYLANE_API_TOKEN est un
+    # Firm API Token (token cabinet) — envoyé via le header X-Company-Id.
+    company_id_env = os.environ.get("PENNYLANE_COMPANY_ID", "").strip()
+    company_id: int | None = None
+    if company_id_env:
+        try:
+            company_id = int(company_id_env)
+        except ValueError:
+            print(
+                f"⚠️  PENNYLANE_COMPANY_ID invalide (entier attendu) : "
+                f"'{company_id_env}' — ignoré.",
+                file=sys.stderr,
+            )
 
     manager = DossierManager(config_path)
     await manager.add_dossier(
         slug="default",
         name="Dossier principal",
         token=api_token,
+        company_id=company_id,
         save=False,  # Ne pas sauvegarder en mode legacy
     )
     set_manager(manager)
 
+    mode_info = (
+        f" (Firm token, X-Company-Id={company_id})" if company_id else ""
+    )
     print(
-        f"🚀 {SERVER_NAME} v{SERVER_VERSION} démarré — Mode mono-dossier",
+        f"🚀 {SERVER_NAME} v{SERVER_VERSION} démarré — "
+        f"Mode mono-dossier{mode_info}",
         file=sys.stderr,
     )
     try:

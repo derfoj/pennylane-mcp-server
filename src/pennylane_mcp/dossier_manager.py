@@ -66,17 +66,31 @@ def mask_token(token: str) -> str:
     return f"{token[:6]}…{token[-3:]}"
 
 
-def _build_client(token: str) -> httpx.AsyncClient:
-    """Crée un client httpx configuré pour l'API Pennylane."""
+def _build_client(
+    token: str,
+    company_id: int | None = None,
+) -> httpx.AsyncClient:
+    """Crée un client httpx configuré pour l'API Pennylane.
+
+    Args:
+        token: Company API Token, ou Firm API Token (token cabinet).
+        company_id: ID de la société cible. Obligatoire avec un Firm
+            API Token — envoyé via le header ``X-Company-Id`` — afin
+            que l'API v2 sache sur quelle société opérer.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "Authorization": f"Bearer {token}",
+        "X-Use-2026-API-Changes": "true",
+    }
+    if company_id is not None:
+        headers["X-Company-Id"] = str(company_id)
+
     return httpx.AsyncClient(
         base_url=API_BASE_URL,
         timeout=30.0,
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": f"Bearer {token}",
-            "X-Use-2026-API-Changes": "true",
-        },
+        headers=headers,
     )
 
 
@@ -190,7 +204,8 @@ class DossierManager:
                 raise RuntimeError(
                     f"Dossier '{slug}' introuvable dans la configuration."
                 )
-            self._clients[slug] = _build_client(self._dossiers[slug].token)
+            dc = self._dossiers[slug]
+            self._clients[slug] = _build_client(dc.token, dc.company_id)
         return self._clients[slug]
 
     async def get_current_client(self) -> httpx.AsyncClient:
@@ -219,10 +234,16 @@ class DossierManager:
         name: str,
         token: str,
         notes: str | None = None,
+        company_id: int | None = None,
         *,
         save: bool = True,
     ) -> DossierConfig:
         """Ajoute un nouveau dossier au registre.
+
+        Args:
+            company_id: ID de la société Pennylane. À fournir si ``token``
+                est un Firm API Token (token cabinet) — il sera envoyé via
+                le header ``X-Company-Id``.
 
         Raises:
             ValueError: Si le slug existe déjà ou le token est trop court.
@@ -241,13 +262,14 @@ class DossierManager:
             slug=slug,
             name=name,
             token=token,
+            company_id=company_id,
             created_at=datetime.now(timezone.utc).isoformat(),
             notes=notes,
         )
         self._dossiers[slug] = config
 
         # Pré-créer le client
-        self._clients[slug] = _build_client(token)
+        self._clients[slug] = _build_client(token, company_id)
 
         # Auto-sélection si premier dossier
         if self._current_slug is None:
@@ -393,6 +415,7 @@ class DossierManager:
             slug=dc.slug,
             name=dc.name,
             is_current=(slug == self._current_slug),
+            company_id=dc.company_id,
             created_at=dc.created_at,
             notes=dc.notes,
             token_masked=mask_token(dc.token),

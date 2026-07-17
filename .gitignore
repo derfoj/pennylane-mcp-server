@@ -58,3 +58,5 @@ $RECYCLE.BIN/
 *~
 *.sublime-project
 *.sublime-workspace
+
+token_cabinet.txt

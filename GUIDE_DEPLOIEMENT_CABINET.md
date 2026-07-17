@@ -92,3 +92,43 @@ Sur le PC de chaque collaborateur (Windows, Mac ou Linux) qui utilise **Claude D
 
 * **Isolation des accès :** N'exposez jamais le port de votre serveur MCP directement sur Internet sans HTTPS et sans un `MCP_AUTH_TOKEN` robuste, ou limitez l'accès au réseau local / VPN du cabinet.
 * **Gestion Multi-dossiers :** Si vous montez un fichier `dossiers.json` sur le serveur central, tous les collaborateurs auront accès aux clients listés dans ce fichier et pourront basculer d'un client à l'autre via la commande `/switch_dossier` ou l'outil `pennylane_switch_dossier`.
+
+---
+
+## 🏢 5. Authentification par Firm API Token (token cabinet)
+
+Depuis la v2.1, le serveur supporte **deux modes d'authentification** par dossier :
+
+| Mode | Champ(s) dans dossiers.json | Avantage |
+|---|---|---|
+| **Company API Token** | `token` | Un token par société, périmètre isolé |
+| **Firm API Token** | `token` (cabinet) + `company_id` | Un seul token pour tout le portefeuille |
+
+Avec un Firm API Token (généré dans *Paramètres du cabinet > Firm Tokens*), le serveur ajoute automatiquement le header `X-Company-Id` à chaque requête API v2. Exemple de `dossiers.json` :
+
+```json
+{
+  "version": "1.0",
+  "current_dossier": "ze-astronaut",
+  "dossiers": [
+    {
+      "slug": "ze-astronaut",
+      "name": "Ze Astronaut",
+      "token": "FIRM_API_TOKEN_DU_CABINET",
+      "company_id": 22017564,
+      "notes": "SIREN 847712056"
+    },
+    {
+      "slug": "disgros",
+      "name": "DISGROS",
+      "token": "FIRM_API_TOKEN_DU_CABINET",
+      "company_id": 22017551,
+      "notes": "SIREN 894823343"
+    }
+  ]
+}
+```
+
+* L'outil **`pennylane_list_firm_companies`** liste les sociétés du portefeuille avec leurs `company_id` (scope `companies:readonly` requis) — pratique pour construire ce fichier.
+* En mode mono-dossier (variables d'environnement), définissez `PENNYLANE_API_TOKEN` (Firm token) **et** `PENNYLANE_COMPANY_ID` (ID de la société).
+* ⚠️ Un Firm token donne accès à **tout le portefeuille** : si chaque collaborateur ne doit voir que ses clients, préférez les Company tokens par client, ou un `dossiers.json` restreint par collaborateur.

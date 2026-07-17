@@ -402,7 +402,18 @@ class DossierConfig(BaseModel):
     token: str = Field(
         ...,
         min_length=10,
-        description="Token API Pennylane pour ce dossier.",
+        description=(
+            "Token API Pennylane pour ce dossier "
+            "(Company API Token, ou Firm API Token si company_id est défini)."
+        ),
+    )
+    company_id: Optional[int] = Field(
+        default=None,
+        description=(
+            "ID de la société Pennylane (header X-Company-Id). "
+            "Requis si le token est un Firm API Token (token cabinet), "
+            "inutile pour un Company API Token."
+        ),
     )
     created_at: Optional[str] = Field(
         default=None,
@@ -423,6 +434,7 @@ class DossierInfo(BaseModel):
     slug: str
     name: str
     is_current: bool = False
+    company_id: Optional[int] = None
     created_at: Optional[str] = None
     notes: Optional[str] = None
     token_masked: str = Field(
