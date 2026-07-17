@@ -122,7 +122,7 @@ def register(mcp: FastMCP) -> None:
             ),
         )],
         payment_method: Annotated[str, Field(
-            description="Méthode de paiement : 'offline' ou 'gocardless_direct_debit'.",
+            description="Méthode de paiement : 'offline', 'gocardless_direct_debit' ou 'pro_account_sepa_core'.",
         )],
         invoice_lines: Annotated[list[InvoiceLineInput], Field(
             description=(

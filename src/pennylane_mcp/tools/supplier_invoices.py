@@ -8,8 +8,15 @@ from typing import Annotated, Optional
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
+<<<<<<< HEAD
 from ..api import api_get, api_post, api_put
 from ..models import CategoryWeight
+=======
+import base64
+from pathlib import Path
+
+from ..api import api_get, api_post, api_post_multipart, api_put
+>>>>>>> ed08eff7c35d9ba119021156f32b7e60b198f1d7
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -31,18 +38,23 @@ def register(mcp: FastMCP) -> None:
     async def pennylane_list_supplier_invoices(
         cursor: Annotated[Optional[str], Field(default=None, description="Curseur pour la pagination.")] = None,
         limit: Annotated[int, Field(default=20, ge=1, le=100, description="Nombre de résultats (1-100, défaut: 20).")] = 20,
-        status: Annotated[Optional[str], Field(
+        payment_status: Annotated[Optional[str], Field(
             default=None,
-            description="Filtrer par statut : 'pending', 'accounted', 'paid'.",
+            description="Filtrer par statut de paiement : 'to_be_processed', 'to_be_paid', "
+            "'partially_paid', 'payment_error', 'payment_scheduled', 'payment_in_progress', "
+            "'payment_emitted', 'payment_found', 'paid_offline', 'fully_paid'. "
+            "(Il n'existe pas de filtre 'status' générique sur cet endpoint.)",
         )] = None,
         supplier_id: Annotated[Optional[int], Field(
             default=None,
             description="Filtrer par ID fournisseur.",
         )] = None,
+        date_from: Annotated[Optional[str], Field(default=None, description="Date min (YYYY-MM-DD, filtre gteq).")] = None,
+        date_to: Annotated[Optional[str], Field(default=None, description="Date max (YYYY-MM-DD, filtre lteq).")] = None,
         sort: Annotated[Optional[str], Field(default=None, description="Tri: 'id', '-id' (défaut: '-id').")] = None,
     ) -> str:
         """Liste les factures fournisseurs avec filtres et pagination.
-        Utile pour consulter les factures reçues, filtrer par statut ou fournisseur.
+        Utile pour consulter les factures reçues, filtrer par statut de paiement ou fournisseur.
         """
         try:
             qp: dict = {"limit": limit}
@@ -52,10 +64,14 @@ def register(mcp: FastMCP) -> None:
                 qp["sort"] = sort
 
             filters: list[dict] = []
-            if status:
-                filters.append({"field": "status", "operator": "eq", "value": status})
+            if payment_status:
+                filters.append({"field": "payment_status", "operator": "eq", "value": payment_status})
             if supplier_id:
                 filters.append({"field": "supplier_id", "operator": "eq", "value": supplier_id})
+            if date_from:
+                filters.append({"field": "date", "operator": "gteq", "value": date_from})
+            if date_to:
+                filters.append({"field": "date", "operator": "lteq", "value": date_to})
             if filters:
                 qp["filter"] = json.dumps(filters)
 
@@ -185,11 +201,17 @@ def register(mcp: FastMCP) -> None:
     async def pennylane_update_supplier_invoice_payment_status(
         supplier_invoice_id: Annotated[int, Field(description="ID de la facture fournisseur.")],
         payment_status: Annotated[str, Field(
-            description="Nouveau statut : 'unpaid', 'paid', 'partially_paid'.",
+            description="Nouveau statut. L'API n'accepte que 'paid' ou 'to_be_paid' en écriture "
+            "(les autres statuts — partially_paid, payment_emitted, etc. — sont en lecture seule).",
         )],
     ) -> str:
         """Met à jour le statut de paiement d'une facture fournisseur."""
         try:
+            if payment_status not in ("paid", "to_be_paid"):
+                return (
+                    "❌ Statut invalide : l'API Pennylane n'accepte que 'paid' ou 'to_be_paid' "
+                    "sur cet endpoint. Les autres statuts sont calculés automatiquement."
+                )
             body = {"payment_status": payment_status}
             data = await api_put(
                 f"/supplier_invoices/{supplier_invoice_id}/payment_status",
@@ -219,10 +241,12 @@ def register(mcp: FastMCP) -> None:
         id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
         categories: Annotated[list[CategoryWeight], Field(description="Liste de catégories avec poids. Ex: [{'id': 59, 'weight': '1.0'}].")],
     ) -> str:
-        """Affecte des axes analytiques à une facture fournisseur."""
+        """Affecte des axes analytiques à une facture fournisseur.
+        Le body API est un tableau brut de {id, weight} ; les poids d'un même
+        groupe de catégories doivent totaliser 1.0.
+        """
         try:
-            body = {"categories": categories}
-            data = await api_put(f"/supplier_invoices/{id}/categories", body)
+            data = await api_put(f"/supplier_invoices/{id}/categories", categories)
             return f"✅ Catégories de la facture fournisseur {id} mises à jour.\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
@@ -264,12 +288,48 @@ def register(mcp: FastMCP) -> None:
         },
     )
     async def pennylane_import_supplier_einvoice(
-        file_attachment_id: Annotated[int, Field(description="ID du fichier uploadé contenant la facture Factur-X/XML.")],
+        file_path: Annotated[Optional[str], Field(
+            default=None,
+            description="Chemin local du fichier e-invoice (Factur-X PDF, UBL XML ou CII XML).",
+        )] = None,
+        file_content_base64: Annotated[Optional[str], Field(
+            default=None,
+            description="Contenu du fichier encodé en base64 (alternative à file_path).",
+        )] = None,
+        file_name: Annotated[str, Field(
+            default="e_invoice.pdf",
+            description="Nom du fichier (extension .pdf ou .xml).",
+        )] = "e_invoice.pdf",
+        invoice_options: Annotated[Optional[dict], Field(
+            default=None,
+            description="Options d'enrichissement (JSON) : {supplier_id: int, invoice_lines: "
+            "[{e_invoice_line_id: str (BT-126), ledger_account_id?: int}]}.",
+        )] = None,
     ) -> str:
-        """Importe et convertit une facture fournisseur électronique reçue."""
+        """Importe une facture fournisseur électronique via multipart/form-data
+        (POST /supplier_invoices/e_invoices/imports). Fournir file_path OU file_content_base64.
+        """
         try:
-            body = {"file_attachment_id": file_attachment_id}
-            data = await api_post("/supplier_invoices/e_invoice_import", body)
+            if bool(file_path) == bool(file_content_base64):
+                return "❌ Fournissez exactement un des deux : file_path ou file_content_base64."
+            if file_path:
+                p = Path(file_path)
+                if not p.is_file():
+                    return f"❌ Fichier introuvable : {file_path}"
+                file_bytes = p.read_bytes()
+                file_name = p.name
+            else:
+                file_bytes = base64.b64decode(file_content_base64)
+
+            content_type = "text/xml" if file_name.lower().endswith(".xml") else "application/pdf"
+            extra = {"invoice_options": json.dumps(invoice_options)} if invoice_options else None
+            data = await api_post_multipart(
+                "/supplier_invoices/e_invoices/imports",
+                file_name=file_name,
+                file_bytes=file_bytes,
+                content_type=content_type,
+                extra_fields=extra,
+            )
             return f"✅ Facture fournisseur électronique importée (id: {data.get('id')}).\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
@@ -278,7 +338,7 @@ def register(mcp: FastMCP) -> None:
 
     @mcp.tool(
         name="pennylane_update_supplier_einvoice_status",
-        description="Applique une transition de cycle de vie e-invoicing : dispute, refuse, undispute (approuvé).",
+        description="Applique une transition de cycle de vie e-invoicing : disputed, refused, approved.",
         annotations={
             "title": "Statut e-invoice facture fournisseur",
             "readOnlyHint": False,
@@ -289,11 +349,17 @@ def register(mcp: FastMCP) -> None:
     )
     async def pennylane_update_supplier_einvoice_status(
         id: Annotated[int, Field(description="Identifiant de la facture fournisseur.")],
-        status: Annotated[str, Field(description="Nouveau statut e-invoicing : 'dispute', 'refuse', ou 'undispute'.")],
-        reason: Annotated[Optional[str], Field(default=None, description="Raison en cas de refus ou litige (requis pour dispute/refuse).")] = None,
+        status: Annotated[str, Field(
+            description="Nouveau statut e-invoicing : 'disputed' (litige), 'refused' (refus), "
+            "ou 'approved' (approbation / levée de litige). "
+            "Statuts en lecture : waiting_for_validation, approved, rejected, disputed, refused, collected, partially_collected.",
+        )],
+        reason: Annotated[Optional[str], Field(default=None, description="Raison du litige ou du refus (REQUIS pour 'disputed' et 'refused').")] = None,
     ) -> str:
         """Change le statut PPF / PA d'une facture fournisseur reçue en e-invoicing."""
         try:
+            if status in ("disputed", "refused") and not reason:
+                return f"❌ Le champ 'reason' est requis par l'API pour le statut '{status}'."
             body: dict = {"status": status}
             if reason:
                 body["reason"] = reason
@@ -339,16 +405,49 @@ def register(mcp: FastMCP) -> None:
         },
     )
     async def pennylane_import_supplier_invoice(
-        file_attachment_id: Annotated[int, Field(description="ID du fichier joint (ex: PDF de la facture).")],
-        supplier_id: Annotated[Optional[int], Field(default=None, description="ID du fournisseur si connu.")] = None,
+        file_attachment_id: Annotated[int, Field(description="ID du fichier joint (créé via pennylane_create_file_attachment).")],
+        supplier_id: Annotated[int, Field(description="ID du fournisseur (requis par l'API).")],
+        date: Annotated[str, Field(description="Date d'émission de la facture (YYYY-MM-DD).")],
+        deadline: Annotated[str, Field(description="Date d'échéance (YYYY-MM-DD).")],
+        currency_amount_before_tax: Annotated[str, Field(description="Total HT en devise (string, ex: '1000.00').")],
+        currency_amount: Annotated[str, Field(description="Total TTC en devise (string).")],
+        currency_tax: Annotated[str, Field(description="Montant de TVA en devise (string).")],
+        invoice_lines: Annotated[list, Field(
+            description="Lignes (min 1). Chaque ligne : {currency_amount: str, currency_tax: str, "
+            "vat_rate: str (ex: 'FR_200'), label?: str}.",
+        )],
+        invoice_number: Annotated[Optional[str], Field(default=None, description="Numéro de la facture fournisseur.")] = None,
+        currency: Annotated[Optional[str], Field(default=None, description="Devise (défaut: EUR).")] = None,
+        import_as_incomplete: Annotated[bool, Field(
+            default=False,
+            description="Importer avec le statut 'incomplete' (défaut: false).",
+        )] = False,
+        label: Annotated[Optional[str], Field(default=None, description="Libellé (≤2000 caractères).")] = None,
     ) -> str:
-        """Importe un document d'achat dans l'OCR / module factures fournisseurs."""
+        """Importe une facture fournisseur avec son fichier et ses données comptables
+        (POST /supplier_invoices/import — champs montants requis par l'API).
+        """
         try:
-            body: dict = {"file_attachment_id": file_attachment_id}
-            if supplier_id:
-                body["supplier_id"] = supplier_id
+            body: dict = {
+                "file_attachment_id": file_attachment_id,
+                "supplier_id": supplier_id,
+                "date": date,
+                "deadline": deadline,
+                "currency_amount_before_tax": currency_amount_before_tax,
+                "currency_amount": currency_amount,
+                "currency_tax": currency_tax,
+                "invoice_lines": invoice_lines,
+            }
+            if invoice_number:
+                body["invoice_number"] = invoice_number
+            if currency:
+                body["currency"] = currency
+            if import_as_incomplete:
+                body["import_as_incomplete"] = True
+            if label:
+                body["label"] = label
             data = await api_post("/supplier_invoices/import", body)
-            return f"✅ Facture fournisseur importée avec succès.\n\n{to_json(data)}"
+            return f"✅ Facture fournisseur importée avec succès (id: {data.get('id')}).\n\n{to_json(data)}"
         except Exception as exc:
             return f"❌ {exc}"
 

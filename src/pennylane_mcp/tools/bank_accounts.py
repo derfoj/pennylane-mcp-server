@@ -89,19 +89,33 @@ def register(mcp: FastMCP) -> None:
         },
     )
     async def pennylane_create_bank_account(
-        iban: Annotated[str, Field(description="Numéro IBAN du compte bancaire.")],
-        label: Annotated[str, Field(description="Libellé ou nom interne du compte (ex: 'Compte Principal BNP').")],
-        bank_name: Annotated[Optional[str], Field(default=None, description="Nom de la banque (ex: 'BNP Paribas').")] = None,
+        name: Annotated[str, Field(description="Nom du compte bancaire (champ API 'name', ex: 'Compte Principal BNP').")],
+        iban: Annotated[Optional[str], Field(default=None, description="Numéro IBAN du compte bancaire.")] = None,
         bic: Annotated[Optional[str], Field(default=None, description="Code BIC / SWIFT.")] = None,
-        currency: Annotated[str, Field(default="EUR", description="Devise du compte (défaut: 'EUR').")] = "EUR",
+        bank_establishment_id: Annotated[Optional[int], Field(
+            default=None,
+            description="ID de l'établissement bancaire (voir pennylane_list_bank_establishments).",
+        )] = None,
+        currency: Annotated[Optional[str], Field(default=None, description="Devise du compte (ex: 'EUR').")] = None,
+        account_type: Annotated[Optional[str], Field(
+            default=None,
+            description="Type de compte : 'current', 'checking', 'card', 'savings', 'shares', "
+            "'loan', 'life_insurance', 'other'.",
+        )] = None,
     ) -> str:
-        """Crée un compte bancaire sur le dossier en cours."""
+        """Crée un compte bancaire sur le dossier en cours (seul 'name' est requis par l'API)."""
         try:
-            body: dict = {"iban": iban, "label": label, "currency": currency}
-            if bank_name:
-                body["bank_name"] = bank_name
+            body: dict = {"name": name}
+            if iban:
+                body["iban"] = iban
             if bic:
                 body["bic"] = bic
+            if bank_establishment_id:
+                body["bank_establishment_id"] = bank_establishment_id
+            if currency:
+                body["currency"] = currency
+            if account_type:
+                body["account_type"] = account_type
 
             data = await api_post("/bank_accounts", body)
             return f"✅ Compte bancaire créé avec succès (id: {data.get('id')}).\n\n{to_json(data)}"

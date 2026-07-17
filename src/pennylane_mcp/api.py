@@ -107,6 +107,9 @@ async def _request_with_retry(
                 await asyncio.sleep(1.0 * (2 ** attempt))
                 continue
             raise
+    # Inatteignable en pratique (chaque itération retourne ou lève),
+    # mais garantit qu'on ne retourne jamais None implicitement.
+    raise RuntimeError("Échec de la requête après plusieurs tentatives.")
 
 
 async def api_get(
@@ -147,6 +150,46 @@ async def api_post(
             data = dump_pydantic(data)
         resp = await _request_with_retry(client, "POST", endpoint, json=data)
         # Certains POST renvoient 204 ou un body vide (ex: send_by_email)
+        if resp.status_code == 204 or not resp.content:
+            return {}
+        return resp.json()
+    except httpx.HTTPStatusError as exc:
+        raise _format_error(exc, dossier_slug) from exc
+    except httpx.TimeoutException as exc:
+        raise RuntimeError(
+            _prefix_dossier("Timeout : requête expirée après retries.", dossier_slug)
+        ) from exc
+
+
+async def api_post_multipart(
+    endpoint: str,
+    *,
+    file_field: str = "file",
+    file_name: str,
+    file_bytes: bytes,
+    content_type: str = "application/pdf",
+    extra_fields: Optional[dict[str, Any]] = None,
+    dossier_slug: Optional[str] = None,
+) -> Any:
+    """POST multipart/form-data vers l'API Pennylane (upload de fichiers).
+
+    Utilisé par les endpoints d'upload : /file_attachments, appendices,
+    imports e-invoice. Le Content-Type JSON par défaut du client est
+    retiré pour laisser httpx générer le boundary multipart.
+    """
+    try:
+        client = await _resolve_client(dossier_slug)
+        files = {file_field: (file_name, file_bytes, content_type)}
+        data = {k: str(v) for k, v in (extra_fields or {}).items()}
+        # Ne pas envoyer le header Content-Type: application/json du client
+        resp = await _request_with_retry(
+            client,
+            "POST",
+            endpoint,
+            files=files,
+            data=data or None,
+            headers={"Content-Type": None},
+        )
         if resp.status_code == 204 or not resp.content:
             return {}
         return resp.json()
