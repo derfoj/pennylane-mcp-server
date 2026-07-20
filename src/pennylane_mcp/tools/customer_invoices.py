@@ -8,15 +8,11 @@ from typing import Annotated, Optional
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
-<<<<<<< HEAD
-from ..api import api_delete, api_get, api_post, api_put
-from ..models import CategoryWeight, InvoiceLineInput
-=======
 import base64
 from pathlib import Path
 
 from ..api import api_delete, api_get, api_post, api_post_multipart, api_put
->>>>>>> ed08eff7c35d9ba119021156f32b7e60b198f1d7
+from ..models import CategoryWeight, InvoiceLineInput
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 
@@ -123,19 +119,12 @@ def register(mcp: FastMCP) -> None:
         customer_id: Annotated[int, Field(description="ID du client à facturer.")],
         date: Annotated[str, Field(description="Date de la facture (YYYY-MM-DD).")],
         deadline: Annotated[str, Field(description="Date d'échéance (YYYY-MM-DD).")],
-<<<<<<< HEAD
         invoice_lines: Annotated[list[InvoiceLineInput], Field(
-            description="Lignes de facture. Chaque ligne : "
-            "{product_id: int, quantity: number, label: str, unit: str, "
-            "vat_rate: str, price_before_tax: str, discount: str (optionnel)}.",
-=======
-        invoice_lines: Annotated[list, Field(
             description="Lignes de facture (min 1). Deux formes possibles : "
             "1) Avec produit : {product_id: int, quantity: number} (label/prix/TVA auto-remplis, surchargeables). "
             "2) Manuelle : {label: str, quantity: number, raw_currency_unit_price: str (≤6 décimales), "
             "unit: str, vat_rate: str (ex: 'FR_200')}. "
             "Optionnels : description, discount: {type: 'absolute'|'relative', value}, section_rank.",
->>>>>>> ed08eff7c35d9ba119021156f32b7e60b198f1d7
         )],
         currency: Annotated[Optional[str], Field(default=None, description="Code devise (défaut: EUR).")] = None,
         special_mention: Annotated[Optional[str], Field(default=None, description="Mention spéciale sur la facture.")] = None,

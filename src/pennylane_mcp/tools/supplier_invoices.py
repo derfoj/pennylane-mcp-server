@@ -8,15 +8,11 @@ from typing import Annotated, Optional
 from pydantic import Field
 from mcp.server.fastmcp import FastMCP
 
-<<<<<<< HEAD
-from ..api import api_get, api_post, api_put
-from ..models import CategoryWeight
-=======
 import base64
 from pathlib import Path
 
 from ..api import api_get, api_post, api_post_multipart, api_put
->>>>>>> ed08eff7c35d9ba119021156f32b7e60b198f1d7
+from ..models import CategoryWeight
 from ..utils import pagination_summary, to_json, truncate_if_needed
 
 

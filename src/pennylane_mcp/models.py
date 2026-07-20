@@ -319,7 +319,7 @@ class InvoiceLineInput(BaseModel):
 
     model_config = ConfigDict(extra="allow", str_strip_whitespace=True)
 
-    label: str = Field(..., description="Libellé / description de la ligne.")
+    label: Optional[str] = Field(default=None, description="Libellé / description de la ligne (optionnel si product_id fourni).")
     quantity: Optional[str] = Field(default="1", description="Quantité (string, ex: '1' ou '2.5').")
     unit_price: Optional[str] = Field(default="0", description="Prix unitaire HT ou TTC en string (ex: '100.00').")
     vat_rate: Optional[str] = Field(default=None, description="Taux de TVA (ex: 'FR_200' pour 20%, 'FR_100' pour 10%, 'exempt').")
